@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "authority": "owner-supplied canonical visual fixtures",
+  "originals": [
+    {
+      "file": "original/grok_video_2026-04-10-03-54-13.mp4",
+      "sha256": "bd9b6b141f0f2d11fadea67a9d097740b30aea6794ac91a31f57a9b385bff57b",
+      "width": 688,
+      "height": 464,
+      "fps": 24,
+      "duration_seconds": 6.041667,
+      "role": "broad ribbon curvature, width, segmentation, controlled twist"
+    },
+    {
+      "file": "original/grok_video_2026-04-10-03-59-49.mp4",
+      "sha256": "581ef49ff03d4ebf2bd758bd3e447f0959d2032d7bca4b5eeaf2db4d2601292f",
+      "width": 480,
+      "height": 640,
+      "fps": 24,
+      "duration_seconds": 6.041667,
+      "role": "edge-on twist, dramatic width change, barcode breakup"
+    },
+    {
+      "file": "original/grok_video_2026-04-10-04-01-42.mp4",
+      "sha256": "724a47ae239c725bcead12df161f55064ab4ed256dfaa6f675b5b3024476c558",
+      "width": 464,
+      "height": 688,
+      "fps": 24,
+      "duration_seconds": 6.041667,
+      "role": "long S-curves, smooth tension, stable material"
+    },
+    {
+      "file": "original/grok_video_2026-04-10-04-05-20.mp4",
+      "sha256": "c0f21fd15cc91cac01d88cead7cda0fecb24afc56766258f6ffbef94ee6fbebe",
+      "width": 464,
+      "height": 688,
+      "fps": 24,
+      "duration_seconds": 6.041667,
+      "role": "multi-ribbon weaving, crossings, combined restrained glow"
+    }
+  ],
+  "contact_sheets_are_derivatives": true,
+  "provenance": {
+    "source": "direct owner upload in DEX//PULSE planning conversation",
+    "import_policy": "preserve original bytes unchanged",
+    "identity": "sha256",
+    "filename_timestamp_semantics": "source filename metadata only"
+  }
+}

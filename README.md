@@ -16,7 +16,7 @@ V1 must support real context acquisition from selected text/files, UI elements u
 
 ## Source-of-truth order
 
-When project documents disagree, use this order. A newer explicit owner correction always outranks repository text and should then be propagated into the controlling files.
+When project documents disagree, use this order:
 
 1. `PROJECT_BIBLE.md` — current product intent, locked user decisions, and non-goals.
 2. `OPERATIONAL_STATE.md` — current evidence state, invariants, unknowns, and pending work.
@@ -36,8 +36,6 @@ The uploaded visual reference videos are repository fixtures, not mood-board sug
 - [`PROJECT_SYSTEM_INSTRUCTION.md`](PROJECT_SYSTEM_INSTRUCTION.md)
 - [`docs/V1_ACCEPTANCE_MATRIX.md`](docs/V1_ACCEPTANCE_MATRIX.md)
 - [`docs/VISUAL_LANGUAGE.md`](docs/VISUAL_LANGUAGE.md)
-- [`docs/ADVERSARIAL_REVIEW.md`](docs/ADVERSARIAL_REVIEW.md)
-- [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md)
 
 ## Current state
 

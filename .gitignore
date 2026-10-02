@@ -1,0 +1,29 @@
+.DS_Store
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.env
+.env.*
+!*.example
+*.log
+
+# Never commit local runtime state
+.local-state/
+Witness/
+Habits/
+Spool/
+UserConfig/
+Secrets/
+
+# Build outputs
+build/
+dist/
+*.app/
+*.dmg
+*.zip
+*.metallib
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
