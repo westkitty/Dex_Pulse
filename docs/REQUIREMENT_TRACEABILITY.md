@@ -5,7 +5,7 @@ This file maps the controlling owner requirements into repository artifacts. It 
 | ID | Requirement | Repository evidence | Planning status |
 |---|---|---|---|
 | R01 | complete master plan from empty repo through native V1 vertical slice | `MASTER_IMPLEMENTATION_PLAN.md` | covered |
-| R02 | uploaded videos preserved as authoritative visual fixtures | `fixtures/visual-references/`, hashes/manifest | locally packaged; remote binary publication must be verified |
+| R02 | uploaded videos preserved as authoritative visual fixtures | `fixtures/visual-references/`, hashes/manifest; GitHub raw-byte SHA-256 readback at `76e3560` | covered and remotely verified |
 | R03 | visual implementation must match supplied resources | `docs/VISUAL_LANGUAGE.md`, `docs/VISUAL_FIXTURE_QA.md` | covered |
 | R04 | compact Project system instruction | `PROJECT_SYSTEM_INSTRUCTION.md` (internal <=5,000-character budget) | covered |
 | R05 | each recognized object class has stable directional layout | `PROJECT_BIBLE.md`, `docs/OBJECT_LAYOUTS_V1.md` | covered |
@@ -29,5 +29,5 @@ This file maps the controlling owner requirements into repository artifacts. It 
 | R23 | V1 magic loop closes/RECEDEs after proof/result | interaction model/acceptance V1-015 | covered |
 | R24 | MacBook operator/CLI, Big Mac canonical dev | Bible/master plan | covered |
 | R25 | no Karabiner/Hammerspoon/Docker/browser extension/Python/Node runtime requirement | Bible/system instruction/acceptance | covered |
-| R26 | adversarially critique and optimize planning output | `docs/ADVERSARIAL_REVIEW.md` + optimized artifacts | covered; source gate must still pass after publication |
-| R27 | everything relevant persisted in repository | README/source package + remote verification | pending until repository write verified |
+| R26 | adversarially critique and optimize planning output | `docs/ADVERSARIAL_REVIEW.md` + optimized artifacts; planning source gate pass | covered |
+| R27 | everything relevant persisted in repository | `main@76e3560` source commit + GitHub connector readback + raw MP4 SHA-256 verification | covered for the planning/source package |

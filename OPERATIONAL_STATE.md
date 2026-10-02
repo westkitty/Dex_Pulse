@@ -7,12 +7,12 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "",
-  "state_revision": 1,
-  "last_updated": "2026-10-02T11:30:00Z",
+  "state_revision": 2,
+  "last_updated": "2026-10-02T12:17:16Z",
   "current_baseline": {
-    "identity": "planning/source-of-truth foundation",
+    "identity": "main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c planning/source-of-truth foundation",
     "state": "current-baseline",
-    "last_verified": null
+    "last_verified": "2026-10-02T12:17:16Z"
   },
   "scope_boundaries": [
     "DEX//PULSE native macOS V1 through the first integrated vertical slice"
@@ -34,12 +34,12 @@
 
 ## 2. Current Baseline
 
-- **Primary artifact:** planning/source-of-truth foundation
+- **Primary artifact:** `main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c` planning/source-of-truth foundation
 - **Baseline state:** `current-baseline`
-- **Source/build/install identity:** No application code exists yet.
+- **Source/build/install identity:** Planning source is persisted at `main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c`; no application build exists yet.
 - **Active default user route:** Not implemented.
 - **Delivery state:** Not implemented.
-- **Last verified baseline:** Planning package only; no runtime behavior verified.
+- **Last verified baseline:** 2026-10-02T12:17:16Z — governing docs read back from GitHub and all four raw MP4 fixtures re-downloaded with matching SHA-256. No runtime behavior verified.
 
 ## 3. Artifact Contract
 
@@ -97,7 +97,14 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 
 ## 5. Verified Working Behavior
 
-None. No runtime implementation has been built or verified yet.
+### VER-001 — Planning/source package is persisted and byte-verified
+- **State:** `verified`
+- **Capability:** Repository contains the optimized planning authority and canonical visual fixtures.
+- **Scope:** Planning/source baseline only; no application behavior.
+- **Verification method:** GitHub connector readback of governing text plus raw GitHub re-download and SHA-256 verification of all four MP4 originals.
+- **Evidence:** `main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c`; fixture hashes match `SHA256SUMS.txt`.
+- **Last verified:** 2026-10-02T12:17:16Z
+- **Recheck trigger:** Any source-of-truth or canonical visual-fixture change.
 
 ## 6. Known Not Working
 
@@ -105,7 +112,7 @@ None recorded as defects because no runtime implementation exists yet.
 
 ## 7. Implemented but Unverified
 
-- **UNV-001:** Repository planning/source-of-truth package exists once committed. This does not prove application behavior.
+None for the planning/source package. Runtime implementation has not begun.
 
 ## 8. Unknown or Evidence-Stale State
 
@@ -147,7 +154,7 @@ None recorded as defects because no runtime implementation exists yet.
 | INV-002 | No destructive V1 executor | requested | User decision | Registry enumeration + integration tests | none | 2026-10-02 | Pack/capability changes |
 | INV-003 | Lens precedence is deterministic | requested | User decision | Acquisition fixture suite | none | 2026-10-02 | Lens changes |
 | INV-005 | Strand visuals match fixtures | requested | Four supplied videos | Golden capture + human review | fixture hashes in manifest | 2026-10-02 | renderer/material changes |
-| UNV-001 | Planning package exists | implemented-unverified | Repo commit after publication | Read back required files | pending | 2026-10-02 | source-of-truth changes |
+| VER-001 | Planning package persists with canonical fixtures | verified | GitHub readback + raw fixture SHA-256 | Read governing files and re-hash remote fixture bytes | main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c | 2026-10-02T12:17:16Z | source-of-truth or fixture changes |
 
 ## 12. Current Change Scope and Impact Radius
 
@@ -166,3 +173,10 @@ None recorded as defects because no runtime implementation exists yet.
 - **State deltas:** Initialized DEX//PULSE operational state from locked project decisions.
 - **New evidence:** Four user-supplied visual reference videos and derived contact sheets; repository was empty before foundation work.
 - **Validation not performed:** No native runtime/build/interaction behavior exists yet.
+
+### Revision 2 — Planning publication verified
+
+- **Artifact/source identity:** `main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c`
+- **State deltas:** Promoted planning/source persistence from unverified to verified.
+- **New evidence:** GitHub governing-file readback; raw re-download of all four original MP4 fixtures with exact SHA-256 matches.
+- **Validation not performed:** No application/runtime/UX behavior exists yet.

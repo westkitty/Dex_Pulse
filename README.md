@@ -39,7 +39,7 @@ The uploaded visual reference videos are repository fixtures, not mood-board sug
 
 ## Current state
 
-Planning/source-of-truth foundation only. No application code has been implemented or behaviorally verified yet.
+Planning/source-of-truth foundation is published and byte-verified at baseline commit `76e3560d4e6cc3604408f5f66e0ea8fc91d6964c`. No application code has been implemented or behaviorally verified yet.
 
 ## Provisional choices
 

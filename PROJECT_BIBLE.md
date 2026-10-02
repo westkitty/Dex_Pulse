@@ -181,3 +181,10 @@ A real V1 vertical slice exists when the user can:
 ## Post-V1 product truth
 
 Teach DEX is a first major post-V1 feature and is important enough that the product is not considered strategically complete without it. It is intentionally deferred so V1 can prove the deterministic interaction/execution foundation first.
+
+## Planning publication record
+
+- Initial optimized planning/source baseline: `76e3560d4e6cc3604408f5f66e0ea8fc91d6964c`.
+- Governing Markdown was read back from GitHub after push.
+- All four original visual-reference MP4s were downloaded again from GitHub raw URLs and matched the owner-uploaded SHA-256 values in `fixtures/visual-references/SHA256SUMS.txt`.
+- This proves repository persistence of the planning package and visual fixtures; it does not prove any future runtime behavior.
