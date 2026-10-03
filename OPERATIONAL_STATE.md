@@ -7,12 +7,12 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 3,
-  "last_updated": "2026-10-03T00:32:00Z",
+  "state_revision": 4,
+  "last_updated": "2026-10-03T00:56:00Z",
   "current_baseline": {
     "identity": "Phase 0/1 native bootstrap foundation",
     "state": "active-bootstrap-verified",
-    "last_verified": "2026-10-03T00:31:30Z"
+    "last_verified": "2026-10-03T00:38:00Z"
   },
   "scope_boundaries": [
     "DEX//PULSE native macOS V1 through Phase 0/1 native bootstrap foundation"
@@ -48,11 +48,13 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 ## 4. Active Invariants
 
 ### INV-001 — DexDictate priority
-- **State:** `verified-local`
+- **State:** `requested`
 - **Rule:** Pulse must not steal focus, selection, clipboard state, trigger state, or insertion/undo assumptions from DexDictate; opening Pulse must not mutate the clipboard.
 - **Scope:** All capture, invocation, fallback, write-back, and automation paths.
 - **Authority:** Explicit user decision.
-- **Validation method:** Runtime verification: DexDictate trigger identified as Middle Mouse (button 2); Pulse provisional hotkey `Shift-Command-Space` verified without collision; clipboard and frontmost focus preserved across launch.
+- **Validation method:** Full concurrent runtime matrix with DexDictate recording/transcribing/insertion paths (Phase 7).
+- **Evidence (partial Phase 0/1):** Runtime smoke probes verified DexDictate installed and active (`com.westkitty.dexdictate.macos`), trigger identified as Middle Mouse (button 2) with no collision against provisional hotkey `Shift-Command-Space`, and basic Pulse launch preserved `NSPasteboard` changeCount/content and frontmost application focus.
+- **Unverified:** Full DexDictate coexistence contract (selection preservation during real DexDictate use, Accessibility insertion-target identity, transcription/delivery interactions, browser AX behavior while both apps operate, Undo Last Dictation semantics after Pulse interaction, and all conflict/yield behavior defined by the coexistence matrix).
 - **Status:** active
 
 ### INV-002 — No destructive V1 executor
@@ -80,11 +82,13 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 - **Status:** active
 
 ### INV-005 — Canonical Strand fixture fidelity
-- **State:** `verified-local`
+- **State:** `requested`
 - **Rule:** Strand rendering must match the repository video fixtures for ribbon geometry, twist, transverse barcode segmentation, readable faces/edges, crossings, and restrained glow.
 - **Scope:** PulseStrandRenderer and all visual variants derived from it.
 - **Authority:** Explicit user direction plus supplied reference media.
-- **Validation method:** Canonical 4 MP4 video fixtures and 4 contact sheets hash-verified against `SHA256SUMS.txt`.
+- **Validation method:** Golden visual comparison plus human reference review against original videos (Phase 6).
+- **Evidence (fixtures only):** Canonical 4 MP4 video fixtures and 4 contact sheets exist in repository and hash-verify cleanly against `SHA256SUMS.txt` via `scripts/verify_fixtures.sh`.
+- **Unverified:** Strand renderer visual fidelity. The canonical Metal Strand renderer does not exist yet (belongs to Phase 6); ribbon geometry, twist, transverse barcode segmentation, readable crossings, restrained glow, face/edge/underside behavior, and motion fidelity remain unverified.
 - **Status:** active
 
 ### INV-006 — Core runtime independence
@@ -99,15 +103,16 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 
 - **VER-001 (Planning Publication):** Planning package persisted and byte-verified at `main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c` with matching fixture SHA-256.
 - **VER-002 (Build):** `swift build -c release` compiles all modules and executables without third-party dependencies.
-- **VER-003 (Unit Tests):** 13 unit tests across `PulseCoreTests`, `PulseKitTests`, and `PulseVerificationTests` pass cleanly in 0.002s.
+- **VER-003 (Unit Tests):** 13 unit tests across `PulseCoreTests`, `PulseKitTests`, and `PulseVerificationTests` pass cleanly in 0.015s.
 - **VER-004 (Deterministic Verifier):** `PulseVerification` passes all 28 automated checks covering state machine transitions, cancellation safety, central policy enforcement, hotkey defaults, Lens precedence, visual tokens, and fixture presence.
 - **VER-005 (Diagnostic Doctor):** `dexpulse doctor` and `dexpulse doctor --json` run headlessly and truthfully report build identity, architecture, permissions, targets, capabilities, renderers, and evidence limitations without secrets.
 - **VER-006 (App Bundle Assembly):** `scripts/build_app.sh` constructs a valid native `DEX_PULSE.app` bundle with `Info.plist`, `LSUIElement=true`, and ad-hoc code signature.
 - **VER-007 (User Installation):** `scripts/install_user.sh` installs the application to `~/Applications/DEX_PULSE.app` and CLI to `~/.local/bin/dexpulse`.
 - **VER-008 (Runtime Process):** Installed `DEX_PULSE.app` launches directly, initializes in accessory mode, runs menu bar item, and terminates cleanly.
-- **VER-009 (Clipboard Non-Mutation):** Installed app execution preserves `NSPasteboard` contents and changeCount without alteration.
-- **VER-010 (Focus Non-Theft):** Installed app runs in accessory mode without stealing focus from active frontmost application.
+- **VER-009 (Clipboard Non-Mutation Smoke):** Installed app execution preserves `NSPasteboard` contents and changeCount without alteration across launch and dismissal.
+- **VER-010 (Focus Non-Theft Smoke):** Installed app runs in accessory mode without stealing focus from active frontmost application.
 - **VER-011 (Carbon Global Hotkey):** Native Carbon `RegisterEventHotKey` registers `Shift-Command-Space` without requiring Accessibility or Input Monitoring permissions.
+- **VER-012 (Visual Reference Fixtures Integrity):** All 4 canonical MP4 videos and 4 contact sheets match `SHA256SUMS.txt` on disk and remote. (Validates asset fixture integrity only; does not validate renderer visual fidelity).
 
 ## 6. Known Not Working
 
@@ -118,6 +123,8 @@ None identified for the Phase 0/1 bootstrap scope.
 - **UNV-001:** Physical multi-app hotkey overlay popup across arbitrary third-party windows requires visual operator observation.
 - **UNV-002:** Big Mac Target dispatch route remains pending physical network connection (`bigmac.local` unreachable during Phase 0).
 - **UNV-003:** Phase 2 full Lens context acquisition (structural provider seams are defined in `PulseLens`, but live Accessibility tree inspection belongs to Phase 2).
+- **UNV-004:** Full DexDictate coexistence contract (selection preservation during active dictation, Accessibility insertion-target identity, transcription delivery, browser AX behavior under concurrent operation, Undo Last Dictation semantics, and conflict-yield behavior; scheduled for Phase 7).
+- **UNV-005:** Canonical Strand renderer fidelity (Metal Strand renderer does not exist yet; ribbon geometry, twist, transverse barcode segmentation, crossings, glow restraint, face/edge/underside behavior, and motion fidelity belong to Phase 6).
 
 ## 8. Unknown or Evidence-Stale State
 
@@ -151,10 +158,11 @@ None identified for the Phase 0/1 bootstrap scope.
 | ID | Claim or behavior | State | Evidence | Validation method | Artifact/revision | Last checked | Recheck trigger |
 |---|---|---|---|---|---|---|---|
 | VER-001 | Planning package persists with canonical fixtures | verified | GitHub readback + raw fixture SHA-256 | Read governing files and re-hash remote fixture bytes | main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c | 2026-10-02T12:17:16Z | source-of-truth or fixture changes |
-| INV-001 | DexDictate retains priority | verified-local | DexDictate trigger Middle Mouse; no hotkey collision; focus & clipboard preserved | Runtime smoke inspection | `build/DEX_PULSE.app` | 2026-10-03 | hotkey/focus changes |
+| VER-012 | Visual fixture integrity | verified-local | All 4 original MP4s and 4 contact sheets match SHA256SUMS.txt | `scripts/verify_fixtures.sh` | `fixtures/visual-references/` | 2026-10-03 | fixture changes |
+| INV-001 | DexDictate retains priority | requested | Partial Phase 0/1: no trigger collision, clipboard/focus preserved. Full coexistence matrix unverified | Concurrent runtime matrix (Phase 7) | `build/DEX_PULSE.app` (partial) | 2026-10-03 | capture/input/coexistence changes |
 | INV-002 | No destructive V1 executor | verified-local | Destructive future cap blocked | `PulsePolicy` + `PulseVerification` | `PulseKit` | 2026-10-03 | Pack/policy changes |
 | INV-003 | Lens precedence is deterministic | verified-local | Tier 1 > Tier 2 > Tier 5 | `LensResolver` tests | `PulseLens` | 2026-10-03 | Lens changes |
-| INV-005 | Strand visuals match fixtures | verified-local | 4 MP4 hashes match manifest | `scripts/verify_fixtures.sh` | fixture files | 2026-10-03 | renderer changes |
+| INV-005 | Strand visuals match fixtures | requested | Reference fixtures intact. Metal Strand renderer not yet implemented (Phase 6) | Golden comparison against reference videos (Phase 6) | none (fixtures only) | 2026-10-03 | renderer/material changes |
 | INV-006 | Core runtime independence | verified-local | 0 external packages | `Package.swift` inspection | package graph | 2026-10-03 | dependency changes |
 
 ## 12. Current Change Scope and Impact Radius
@@ -165,6 +173,12 @@ None identified for the Phase 0/1 bootstrap scope.
 - **Repair class:** Phase 0/1 native bootstrap.
 
 ## 13. Compact Revision Log
+
+### Revision 4 — 2026-10-03
+
+- **Artifact/source identity:** Phase 0/1 evidence correction (`branch: phase-00-01-bootstrap`)
+- **State deltas:** Corrected overclaims for INV-001 and INV-005. Reclassified INV-001 (DexDictate priority) as `requested` with explicit partial Phase 0/1 evidence (focus/clipboard preservation and no hotkey collision) while marking full coexistence unverified (UNV-004). Reclassified INV-005 (Strand fidelity) as `requested` with fixture integrity explicitly separated as VER-012, while noting Metal Strand renderer implementation and visual fidelity remain unverified (UNV-005, Phase 6).
+- **New evidence:** Preserved Phase 0/1 verification evidence from Revision 3 without substantive code changes.
 
 ### Revision 3 — 2026-10-03
 
