@@ -8,12 +8,15 @@ cd "$ROOT"
 FRAMEWORK_PATHS=""
 LINKER_PATHS=""
 
-CLT_FRAMEWORKS="/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
-CLT_USRLIB="/Library/Developer/CommandLineTools/Library/Developer/usr/lib"
+DEV_DIR=$(xcode-select -p 2>/dev/null || echo "")
+if [ "$DEV_DIR" = "/Library/Developer/CommandLineTools" ]; then
+    CLT_FRAMEWORKS="/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+    CLT_USRLIB="/Library/Developer/CommandLineTools/Library/Developer/usr/lib"
 
-if [ -d "$CLT_FRAMEWORKS" ]; then
-    FRAMEWORK_PATHS="-Xswiftc -F -Xswiftc $CLT_FRAMEWORKS"
-    LINKER_PATHS="-Xlinker -rpath -Xlinker $CLT_FRAMEWORKS -Xlinker -rpath -Xlinker $CLT_USRLIB"
+    if [ -d "$CLT_FRAMEWORKS" ]; then
+        FRAMEWORK_PATHS="-Xswiftc -F -Xswiftc $CLT_FRAMEWORKS"
+        LINKER_PATHS="-Xlinker -rpath -Xlinker $CLT_FRAMEWORKS -Xlinker -rpath -Xlinker $CLT_USRLIB"
+    fi
 fi
 
 swift test $FRAMEWORK_PATHS $LINKER_PATHS "$@"

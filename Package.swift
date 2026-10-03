@@ -7,7 +7,19 @@ var testLinkerSettings: [LinkerSetting] = []
 
 let cltFrameworks = "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
 let cltUsrLib = "/Library/Developer/CommandLineTools/Library/Developer/usr/lib"
-if FileManager.default.fileExists(atPath: cltFrameworks) {
+let devDir: String = {
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
+    task.arguments = ["-p"]
+    let pipe = Pipe()
+    task.standardOutput = pipe
+    try? task.run()
+    task.waitUntilExit()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+}()
+
+if devDir == "/Library/Developer/CommandLineTools" && FileManager.default.fileExists(atPath: cltFrameworks) {
     testSwiftSettings.append(.unsafeFlags(["-F", cltFrameworks]))
     testLinkerSettings.append(.unsafeFlags([
         "-Xlinker", "-F", "-Xlinker", cltFrameworks,

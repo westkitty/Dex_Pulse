@@ -13,6 +13,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Select Xcode 16 toolchain
+        run: |
+          for app in /Applications/Xcode_16*.app /Applications/Xcode.app; do
+            if [ -d "$app/Contents/Developer" ]; then
+              echo "Selecting $app"
+              sudo xcode-select -s "$app/Contents/Developer"
+              break
+            fi
+          done
+          swift --version
+
       - name: Validate planning source & fixtures
         run: |
           sh scripts/validate_planning_source.sh
