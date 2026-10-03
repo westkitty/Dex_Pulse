@@ -175,6 +175,18 @@ let package = Package(
             path: "Tests/PulseVerificationTests",
             swiftSettings: testSwiftSettings,
             linkerSettings: testLinkerSettings
+        ),
+        .testTarget(
+            name: "PulseInteractionTests",
+            dependencies: [
+                "PulseInteraction",
+                "PulseCore",
+                "PulseLens",
+                "PulseVisuals"
+            ],
+            path: "Tests/PulseInteractionTests",
+            swiftSettings: testSwiftSettings,
+            linkerSettings: testLinkerSettings
         )
     ]
 )

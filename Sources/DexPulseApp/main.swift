@@ -10,6 +10,7 @@ final class DexPulseAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let stateMachine = PulseStateMachine()
     private var overlayController: DebugPulseOverlayController?
+    private var veilController: VeilInteractionController?
     private let hotkeyManager = GlobalHotkeyManager.shared
     private let kitRegistry = PulseKitRegistry()
 
@@ -17,7 +18,8 @@ final class DexPulseAppDelegate: NSObject, NSApplicationDelegate {
         // Enforce accessory / utility mode (no dock icon, menu bar only)
         NSApp.setActivationPolicy(.accessory)
 
-        // Initialize overlay controller
+        // Initialize interaction controllers
+        veilController = VeilInteractionController(stateMachine: stateMachine)
         overlayController = DebugPulseOverlayController(stateMachine: stateMachine)
 
         // Setup menu bar item
@@ -27,7 +29,7 @@ final class DexPulseAppDelegate: NSObject, NSApplicationDelegate {
         let regResult = hotkeyManager.register(binding: .default)
         hotkeyManager.setTriggerHandler { [weak self] in
             Task { @MainActor [weak self] in
-                self?.overlayController?.toggle()
+                self?.veilController?.toggle()
             }
         }
 
@@ -47,6 +49,7 @@ final class DexPulseAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Clean shutdown: unregister hotkey, dismiss overlay, reset to quiet
         hotkeyManager.unregister()
+        veilController?.dismiss()
         overlayController?.dismiss()
         stateMachine.resetToQuiet()
     }
@@ -87,14 +90,32 @@ final class DexPulseAppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Toggle Pulse Action
+        // Toggle Pulse Action (Veil Annular Wheel)
         let toggleItem = NSMenuItem(
-            title: "Toggle Pulse (\(HotkeyBinding.default.displayString))",
+            title: "Toggle Pulse (Veil) (\(HotkeyBinding.default.displayString))",
             action: #selector(togglePulseAction),
             keyEquivalent: ""
         )
         toggleItem.target = self
         menu.addItem(toggleItem)
+
+        // Toggle Debug Geometry
+        let debugGeomItem = NSMenuItem(
+            title: "Toggle Veil Debug Geometry",
+            action: #selector(toggleDebugGeometryAction),
+            keyEquivalent: ""
+        )
+        debugGeomItem.target = self
+        menu.addItem(debugGeomItem)
+
+        // Toggle Phase 0/1 Debug Overlay
+        let debugOverlayItem = NSMenuItem(
+            title: "Toggle Rectangular Debug Overlay",
+            action: #selector(toggleDebugOverlayAction),
+            keyEquivalent: ""
+        )
+        debugOverlayItem.target = self
+        menu.addItem(debugOverlayItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -129,6 +150,18 @@ final class DexPulseAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePulseAction() {
+        veilController?.toggle()
+    }
+
+    @objc private func toggleDebugGeometryAction() {
+        guard let vc = veilController else { return }
+        vc.showDebugGeometry.toggle()
+        if !vc.isVisible {
+            vc.present()
+        }
+    }
+
+    @objc private func toggleDebugOverlayAction() {
         overlayController?.toggle()
     }
 

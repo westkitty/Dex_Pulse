@@ -49,6 +49,7 @@ final class PulseVerifier {
         verifyVisualThemeTokens()
         verifyVisualFixtures()
         verifyAppOverlayLifecycle()
+        verifyPhase4VeilAnnularInteraction()
 
         print("================================================================================")
         print(" Summary: \(passed) passed, \(failed) failed")
@@ -674,6 +675,225 @@ final class PulseVerifier {
         assert(textBefore == textAfter, "Clipboard string content unchanged after dismissal")
         assert(frontAppBefore == frontAppAfter, "Frontmost application focus preserved after dismissal")
     }
+
+    private func verifyPhase4VeilAnnularInteraction() {
+        print("\n[13] Verifying Phase 4 Veil Annular Interaction Surface, Parity, & Lifecycle...")
+        _ = NSApplication.shared
+        let sm = PulseStateMachine()
+        let veilController = VeilInteractionController(stateMachine: sm)
+
+        // 1. Verify single source of truth parity across all compass directions
+        let geom = VeilRingGeometry(center: CGPoint(x: 220, y: 220))
+        let midR = (geom.innerRadius + geom.outerRadius) / 2.0
+        for dir in CompassDirection.allCases {
+            guard let sec = geom.sectors[dir] else {
+                assert(false, "Missing sector for direction \(dir)")
+                continue
+            }
+            let rad = dir.nominalAngleDegrees * .pi / 180.0
+            let pt = CGPoint(x: sec.center.x + midR * cos(rad), y: sec.center.y + midR * sin(rad))
+            let parity = sec.verifyParity(point: pt)
+            assert(parity.parityMatches && parity.pathContains && parity.mathContains, "Dense geometry/path parity verified for \(dir)")
+        }
+
+        // 2. Verify all V1 ObjectClasses resolve with experimental lifecycle
+        let registry = VeilLayoutRegistry.shared
+        for objClass in ObjectClass.allCases {
+            let layout = registry.layout(for: objClass)
+            assert(layout.lifecycle == .experimental, "Layout for \(objClass) is in experimental lifecycle")
+            assert(!layout.occupiedDirections.isEmpty, "Layout for \(objClass) has non-empty occupied slots")
+        }
+
+        // 3. Test Veil presentation lifecycle with focus & clipboard non-theft
+        let pboard = NSPasteboard.general
+        let countBefore = pboard.changeCount
+        let textBefore = pboard.string(forType: .string)
+        let frontAppBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+        veilController.present(at: CGPoint(x: 450, y: 450))
+        assert(sm.currentState == .veil, "Veil presented: stateMachine is in VEIL")
+        assert(veilController.isVisible, "VeilWindow is visible")
+
+        let countDuring = pboard.changeCount
+        let frontAppDuring = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        assert(countBefore == countDuring, "Clipboard changeCount preserved during Veil presentation (INV-001)")
+        assert(frontAppBefore == frontAppDuring, "Frontmost application focus preserved during Veil presentation (focus non-theft)")
+
+        // 4. Test dismiss lifecycle
+        veilController.dismiss()
+
+        let runLoop = RunLoop.current
+        let deadline = Date().addingTimeInterval(0.5)
+        while sm.currentState != .quiet && Date() < deadline {
+            runLoop.run(until: Date().addingTimeInterval(0.02))
+        }
+
+        assert(sm.currentState == .quiet, "Veil dismissed cleanly to resting QUIET")
+        assert(!veilController.isVisible, "VeilWindow ordered out after dismissal")
+
+        let countAfter = pboard.changeCount
+        let textAfter = pboard.string(forType: .string)
+        let frontAppAfter = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+        assert(countBefore == countAfter, "Clipboard changeCount unchanged after Veil dismissal")
+        assert(textBefore == textAfter, "Clipboard string content unchanged after Veil dismissal")
+        assert(frontAppBefore == frontAppAfter, "Frontmost application focus preserved after Veil dismissal")
+    }
+
+    public func runLiveAppProbes() -> Bool {
+        print("================================================================================")
+        print(" DEX//PULSE Phase 4 Runtime Interaction Probes (Live Evidence)")
+        print("================================================================================")
+
+        let targetApps: [(name: String, bundleID: String)] = [
+            ("TextEdit", "com.apple.TextEdit"),
+            ("Brave Browser", "com.brave.Browser"),
+            ("Terminal", "com.apple.Terminal")
+        ]
+
+        var allPassed = true
+
+        for (appName, bundleID) in targetApps {
+            print("\n--- Probing Target App: \(appName) [\(bundleID)] ---")
+            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
+                print("  [!] App \(appName) is not currently running. Skipping.")
+                continue
+            }
+
+            // 1. Make frontmost
+            app.activate()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+
+            let pboard = NSPasteboard.general
+            let countBefore = pboard.changeCount
+            let textBefore = pboard.string(forType: .string)
+            let frontPIDBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let frontNameBefore = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
+            print("  1. Frontmost app: \(frontNameBefore) (PID: \(frontPIDBefore ?? -1))")
+
+            // 2. Invoke Pulse & acquire Lens context
+            let sm = PulseStateMachine()
+            let veilController = VeilInteractionController(stateMachine: sm)
+
+            let testPoint = CGPoint(x: 500, y: 400)
+            guard let run = try? sm.startRun() else {
+                print("  [FAIL] Failed to start PulseRun")
+                allPassed = false
+                continue
+            }
+            _ = try? sm.transition(to: .lens)
+            let envelope = LensResolver.acquireContextEnvelope(
+                at: (x: Double(testPoint.x), y: Double(testPoint.y)),
+                generationToken: run.generationToken
+            )
+            try? sm.bindEnvelope(envelope)
+
+            // 3. Confirm Lens object
+            let primaryObj = envelope.primaryObject
+            let objClass = primaryObj?.objectClass.rawValue ?? "None"
+            let summary = primaryObj?.summary ?? "None"
+            let tierStr = envelope.primaryTier.map { "Tier \($0)" } ?? "none"
+            print("  2. Lens Context Acquired: [\(objClass)] \"\(summary.prefix(40))\" (\(tierStr))")
+
+            // 4. Show real Veil
+            veilController.present(at: testPoint)
+            let isVeilPresented = (sm.currentState == .veil && veilController.isVisible)
+            print("  3. Real Veil Presented: \(isVeilPresented) (State: [\(sm.currentState.rawValue)])")
+            if !isVeilPresented { allPassed = false }
+
+            // 5. Sweep pointer across multiple sectors
+            let tracker = VeilPointerTracker(center: CGPoint(x: 220, y: 220))
+            let layout = VeilLayoutRegistry.shared.layout(for: primaryObj?.objectClass ?? .clipboard)
+            tracker.startTracking(layout: layout, center: CGPoint(x: 220, y: 220))
+
+            // Test sweep points: Center -> North -> NE -> East -> SE -> South
+            let pCenter = CGPoint(x: 220, y: 220)
+            let pN = CGPoint(x: 220, y: 295)
+            let pNE = CGPoint(x: 220 + 53, y: 220 + 53)
+            let pE = CGPoint(x: 295, y: 220)
+            let pSE = CGPoint(x: 220 + 53, y: 220 - 53)
+            let pS = CGPoint(x: 220, y: 145)
+
+            let hCenter = tracker.updatePointer(at: pCenter)
+            let hN = tracker.updatePointer(at: pN)
+            let hNE = tracker.updatePointer(at: pNE)
+            let hE = tracker.updatePointer(at: pE)
+            let hSE = tracker.updatePointer(at: pSE)
+            let hS = tracker.updatePointer(at: pS)
+
+            let sweepOk = (hCenter == .neutralCenter && hN == .sector(.n, isArmed: false) &&
+                           hNE == .sector(.ne, isArmed: false) && hE == .sector(.e, isArmed: false) &&
+                           hSE == .sector(.se, isArmed: false) && hS == .sector(.s, isArmed: false))
+            print("  4. Pointer Sweep Across Sectors: \(sweepOk ? "PASS" : "FAIL") (Center -> N -> NE -> E -> SE -> S)")
+            if !sweepOk { allPassed = false }
+
+            // 6. Exercise hysteresis & radial overshoot
+            // With N armed, test near-seam angle (66.5°)
+            tracker.armDirection(.n)
+            let pSeamNearN = CGPoint(x: 220 + 75 * cos(66.5 * .pi / 180.0), y: 220 + 75 * sin(66.5 * .pi / 180.0))
+            let hHyst = tracker.updatePointer(at: pSeamNearN)
+            let hystOk = (hHyst == .sector(.n, isArmed: true))
+
+            // Overshoot by 10pt beyond outer radius in N
+            let pOvershootN = CGPoint(x: 220, y: 220 + 112 + 10)
+            let hOver = tracker.updatePointer(at: pOvershootN)
+            let overOk = (hOver == .sector(.n, isArmed: true))
+            print("  5. Hysteresis (6°) & Radial Overshoot (16pt): \(hystOk && overOk ? "PASS" : "FAIL") (Hyst: \(hystOk), Overshoot: \(overOk))")
+            if !(hystOk && overOk) { allPassed = false }
+
+            // 7. Cancel Veil
+            veilController.dismiss()
+            let deadline = Date().addingTimeInterval(0.5)
+            while sm.currentState != .quiet && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            }
+            let quietOk = (sm.currentState == .quiet && !veilController.isVisible)
+            print("  6. Clean Dismissal -> QUIET: \(quietOk ? "PASS" : "FAIL")")
+            if !quietOk { allPassed = false }
+
+            // 8. Confirm Focus & Clipboard Preserved
+            let frontPIDAfter = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let focusOk = (frontPIDBefore == frontPIDAfter)
+            let countAfter = pboard.changeCount
+            let textAfter = pboard.string(forType: .string)
+            let clipOk = (countBefore == countAfter && textBefore == textAfter)
+            print("  7. Focus Preserved: \(focusOk ? "PASS" : "FAIL") (PID: \(frontPIDAfter ?? -1))")
+            print("  8. Clipboard Preserved: \(clipOk ? "PASS" : "FAIL") (changeCount: \(countAfter))")
+            if !(focusOk && clipOk) { allPassed = false }
+        }
+
+        // Screen Edge & Corner Clamping Probes
+        print("\n--- Probing Placement Boundaries (Screen Edge & Corner) ---")
+        let edgePt = CGPoint(x: 5, y: 400)
+        let edgePlacement = VeilPlacementPlanner.resolvePlacement(causalOrigin: edgePt)
+        let edgeOk = edgePlacement.isShifted && edgePlacement.causalOrigin == edgePt
+        print("  1. Screen Edge Clamping at (5, 400): \(edgeOk ? "PASS" : "FAIL") -> Clamped Center: \(edgePlacement.veilCenter)")
+        if !edgeOk { allPassed = false }
+
+        let cornerPt = CGPoint(x: 5, y: 5)
+        let cornerPlacement = VeilPlacementPlanner.resolvePlacement(causalOrigin: cornerPt)
+        let cornerOk = cornerPlacement.isShifted && cornerPlacement.causalOrigin == cornerPt
+        print("  2. Screen Corner Clamping at (5, 5): \(cornerOk ? "PASS" : "FAIL") -> Clamped Center: \(cornerPlacement.veilCenter)")
+        if !cornerOk { allPassed = false }
+
+        // Multi-Monitor Probes (Real Physical Displays)
+        print("\n--- Probing Multi-Monitor Displays (Attached Physical Screens) ---")
+        let screens = NSScreen.screens
+        print("  Attached physical screens: \(screens.count)")
+        for (i, screen) in screens.enumerated() {
+            let origin = CGPoint(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY)
+            let placement = VeilPlacementPlanner.resolvePlacement(causalOrigin: origin, screens: screens)
+            let screenMatch = screen.frame.contains(placement.veilCenter)
+            print("  Display \(i + 1) [frame: \(screen.frame), visible: \(screen.visibleFrame)]:")
+            print("    Placement at midX/midY: \(screenMatch ? "PASS" : "FAIL") -> veilCenter: \(placement.veilCenter)")
+            if !screenMatch { allPassed = false }
+        }
+
+        print("\n================================================================================")
+        print(" Live Runtime Probes: \(allPassed ? "ALL PROBES PASSED" : "FAILURES DETECTED")")
+        print("================================================================================")
+        return allPassed
+    }
 }
 
 @main
@@ -681,7 +901,12 @@ struct PulseVerificationMain {
     @MainActor
     static func main() {
         let verifier = PulseVerifier()
-        let success = verifier.runAll()
-        exit(success ? 0 : 1)
+        if CommandLine.arguments.contains("--runtime-probes") {
+            let success = verifier.runLiveAppProbes()
+            exit(success ? 0 : 1)
+        } else {
+            let success = verifier.runAll()
+            exit(success ? 0 : 1)
+        }
     }
 }

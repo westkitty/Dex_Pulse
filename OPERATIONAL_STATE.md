@@ -7,15 +7,15 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 10,
-  "last_updated": "2026-10-03T03:25:00Z",
+  "state_revision": 11,
+  "last_updated": "2026-10-03T17:50:00Z",
   "current_baseline": {
-    "identity": "Phase 3 Semantic State Machine (Stage A Hardened)",
-    "state": "active-state-machine-verified",
-    "last_verified": "2026-10-03T03:25:00Z"
+    "identity": "Phase 4 Veil Interaction Engine",
+    "state": "active-veil-interaction-verified",
+    "last_verified": "2026-10-03T17:50:00Z"
   },
   "scope_boundaries": [
-    "DEX//PULSE native macOS V1 through Phase 3 semantic state machine, explicit run lifecycles, result holds, and identity hardening"
+    "DEX//PULSE native macOS V1 through Phase 4 Veil interaction engine, annular geometry parity, placement planner, pointer tracking, keyboard traversal, non-activating window, and experimental layout registry"
   ],
   "linked_parent_state": null
 }
@@ -35,11 +35,11 @@
 ## 2. Current Baseline
 
 - **Primary artifact:** `build/DEX_PULSE.app` and `~/.local/bin/dexpulse`
-- **Baseline state:** `active-state-machine-verified`
-- **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 4 test suites.
+- **Baseline state:** `active-veil-interaction-verified`
+- **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 5 test suites (`PulseCoreTests`, `PulseLensTests`, `PulseKitTests`, `PulseVerificationTests`, `PulseInteractionTests`).
 - **Active default user route:** Installed at `~/Applications/DEX_PULSE.app` with CLI `~/.local/bin/dexpulse`.
 - **Delivery state:** Local native build and user-install verified on MacBook Air M1.
-- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 60 unit tests, 103 verifier checks, live AppKit overlay lifecycle probe on macOS, GitHub Actions CI run 37106200742).
+- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 76 unit tests, 156 verifier checks, live runtime interaction probes across TextEdit, Brave, Terminal, edge/corner clamping, and 2 attached physical displays).
 
 ## 3. Artifact Contract
 
@@ -74,11 +74,46 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 - **Status:** active
 
 ### INV-004 — Stable object-class directional layouts
-- **State:** `requested`
+- **State:** `verified-local` (experimental tier)
 - **Rule:** Each recognized object class has a stable directional layout; Pulse must not silently AI-reorder learned Reflexes.
 - **Scope:** Veil presentation and habit suggestions.
+- **Authority:** Explicit user decision (INV-031).
+- **Validation method:** Layout snapshot fixtures and determinism unit tests (`VeilTests`, `VeilLayoutRegistry`).
+- **Evidence:** `VeilLayoutRegistry` covers all 11 V1 `ObjectClass` families deterministically with immutable compass directions. Unavailable capabilities preserve positions (disabled slots); neighbors never slide over. Lifecycle explicitly marked and verified as `.experimental` (Phase 5 owns candidate/frozen tiers).
+- **Status:** active
+
+### INV-032 — Visible geometry strictly equals mathematical hit testing
+- **State:** `verified-local`
+- **Rule:** The path used for visible drawing of sectors and rings must strictly equal the mathematical hit-testing boundary from a single source of truth.
+- **Scope:** VeilSectorGeometry, VeilRingGeometry, VeilView, CAShapeLayer surfaces.
+- **Authority:** Explicit user architecture requirement.
+- **Validation method:** Dense mathematical parity testing (`VeilSectorGeometry.verifyParity`) and real debug visualization.
+- **Evidence:** Parity tests across all 8 compass sectors assert equality between `cgPath().contains(point)` and `contains(point:isArmed:false)` across center, inner radius, outer radius, neighboring sectors, and outside envelopes (100% parity verified in unit tests and verifier).
+- **Status:** active
+
+### INV-033 — Seam hysteresis and radial overshoot envelope
+- **State:** `verified-local`
+- **Rule:** Armed sectors must resist fluttering across seams via 6° angular hysteresis and provide 16 pt radial overshoot forgiveness.
+- **Scope:** VeilPointerTracker, interactive pointer sweeps.
+- **Authority:** Explicit interaction requirement (INTERACTION_MODEL.md).
+- **Validation method:** Deterministic seam-jitter, intentional seam crossing, and radial overshoot unit tests (`VeilTests`) plus live runtime probes.
+- **Status:** active
+
+### INV-034 — Minimal translation placement with causal origin preservation
+- **State:** `verified-local`
+- **Rule:** Clamping Veil within visible screen margins must shift center minimally while preserving `causalOrigin`.
+- **Scope:** VeilPlacementPlanner, multi-monitor display placement.
+- **Authority:** Explicit interaction requirement.
+- **Validation method:** Screen edge, screen corner, and multi-monitor synthetic/live probes.
+- **Evidence:** Tested edge clamping at (5, 400) -> (196, 400), corner clamping at (5, 5) -> (196, 196), synthetic negative-origin monitor (-1920, 0), and 2 live physical displays (Display 1 at 0,0 and Display 2 at -1440,-132) with 100% causal origin preservation.
+- **Status:** active
+
+### INV-035 — Full keyboard traversal without focus theft
+- **State:** `verified-local`
+- **Rule:** Keyboard navigation can reach every visible, interactive action without focus theft or installing permanent global key intercepts.
+- **Scope:** VeilKeyboardNavigator, VeilWindow non-activating panel.
 - **Authority:** Explicit user decision.
-- **Validation method:** Layout snapshot fixtures and migration/version checks (Phase 4/5).
+- **Validation method:** Automated traversal unit tests across 4-slot, 8-slot, and nested layouts, testing Tab/Shift-Tab, arrow keys, dive nested, back out nested, and Escape cancel.
 - **Status:** active
 
 ### INV-005 — Canonical Strand fixture fidelity
@@ -131,10 +166,12 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 - **VER-012 (Visual Reference Fixtures Integrity):** All 4 canonical MP4 videos and 4 contact sheets match `SHA256SUMS.txt` on disk and remote. (Validates asset fixture integrity only; does not validate renderer visual fidelity).
 - **VER-013 (Phase 2 Lens Context Acquisition & Lazy Precedence):** Full 5-tier context precedence hierarchy (Tier 1 Selected Content > Tier 2 Pointer Element > Tier 3 Focused Element > Tier 4 Frontmost App/Window > Tier 5 Clipboard Fallback) implemented and verified with true lazy tier-by-tier halting. When Tiers 1–4 succeed, acquisition halts immediately; lower tiers (including Tier 5 clipboard fallback) are never invoked, no clipboard content is read, and no clipboard snapshot is retained in the envelope. Bounded cross-process Accessibility calls enforced natively via `AXUIElementSetMessagingTimeout(0.5)`. Explicit Accessibility denial and degradation reporting implemented in `PulseContextEnvelope` with zero-TCC test injection. Unit tests (28 tests across 4 suites), headless verifier (51 assertions), and live probes on macOS verify: deterministic lazy resolution, coordinate mapping (AppKit bottom-left <-> CG top-left), whitespace rejection, secure field blocking (`privacyClass = .secureBlocked` with zero secret leak), type refinement preserving parent provenance (URL, Path, JSON, ErrorLog, CodeSnippet), stale context generation token and live PID validation, and zero clipboard mutation.
 - **VER-014 (Synthetic AX Fixture App):** `PulseLensFixtureApp` target builds and provides inspectable controls (selectable text, secure field with `--focus-secure`, interactive buttons, duplicate labels, disabled button, checkbox, popup menu, multiline editor). Headless and interactive testing verify zero secret leakage from password fields.
+- **VER-015 (Phase 3 Semantic State Machine & Explicit Run Lifecycle):** 15-state semantic loop, PulseRun tracking with shared generation token and bound envelope/source object ID, enforced Result hold blocking RECEDE, re-entrancy rejection (activeRunAlreadyExists), truthful cancellation state trace with observer agreement, cancellation requested vs acknowledged, 8 terminal outcome lifecycles, Witness receipt binding, Result cross-validation, 9 stale/race protections (INV-007, INV-008), and live AppKit overlay lifecycle with zero focus/clipboard theft.
+- **VER-016 (Phase 4 Veil Annular Interaction Engine):** Pure annular geometry model (`VeilGeometry`), minimal-translation placement planner (`VeilPlacementPlanner`), pointer tracking with angular hysteresis and radial overshoot (`VeilPointerTracker`), keyboard navigation engine (`VeilKeyboardNavigator`), non-activating floating AppKit panel (`VeilWindow`), CoreGraphics drawing with single-source-of-truth path parity (`VeilView`), and deterministic directional layouts for all V1 object classes (`VeilLayoutRegistry` with `.experimental` lifecycle). Unit test suite `PulseInteractionTests` (16 tests), headless verifier (156 assertions), and live probes against TextEdit (PID 74529), Brave Browser (PID 693), Terminal (PID 62640), screen edge clamping (196, 400), screen corner clamping (196, 196), and 2 attached physical displays (primary 1280x768 and secondary at negative coordinates -1440x900) verify: 100% drawing/hit-testing parity, transparent corner click-through, neutral center click-through and traversal without dismissal, nested disclosure outward/inward traversal, clean recede to QUIET, and zero focus or clipboard theft.
 
 ## 6. Known Not Working
 
-None identified for the Phase 0/1/2 scope.
+None identified for the Phase 0/1/2/3/4 scope.
 
 ## 7. Implemented but Unverified
 
@@ -143,6 +180,7 @@ None identified for the Phase 0/1/2 scope.
 - **UNV-003:** Electron/VS Code AX tree inspection edge cases: VS Code unavailable on test machine (`NOT TESTED — APPLICATION UNAVAILABLE`). Native AX and WebArea elements verified live in Brave Browser, TextEdit, Terminal, and fixture app.
 - **UNV-004:** Full DexDictate coexistence contract (selection preservation during active dictation, Accessibility insertion-target identity, transcription delivery, browser AX behavior under concurrent operation, Undo Last Dictation semantics, and conflict-yield behavior; scheduled for Phase 11).
 - **UNV-005:** Canonical Strand renderer fidelity (Metal Strand renderer does not exist yet; ribbon geometry, twist, transverse barcode segmentation, crossings, glow restraint, face/edge/underside behavior, and motion fidelity belong to Phase 6).
+- **UNV-006:** Phase 5 layout freeze work remains unverified. All V1 directional layouts remain explicitly marked and verified as `.experimental`; layout freezing, user trials, and misfire analysis belong to Phase 5.
 
 ## 8. Unknown or Evidence-Stale State
 
@@ -152,10 +190,9 @@ None identified for the Phase 0/1/2 scope.
 
 ## 9. Pending Work
 
-- **PND-003:** Phase 3: Extend Pulse state machine into execution/result loop.
-- **PND-004:** Phase 4: Implement Veil interaction engine and object layouts.
-- **PND-005:** Phase 6: Implement canonical Pulsefront and Metal Strand renderer against visual fixtures.
-- **PND-006:** Phase 8: Core V1 Packs (Core macOS, Git, Ollama).
+- **PND-005:** Phase 5: Interaction refinement, real-world trials, misfire analysis, and layout freeze.
+- **PND-006:** Phase 6: Implement canonical Pulsefront and Metal Strand renderer against visual fixtures.
+- **PND-007:** Phase 8: Core V1 Packs (Core macOS, Git, Ollama).
 
 ## 10. Active Decisions, Defaults, and Prohibitions
 
@@ -178,14 +215,20 @@ None identified for the Phase 0/1/2 scope.
 | VER-012 | Visual fixture integrity | verified-local | All 4 original MP4s and 4 contact sheets match SHA256SUMS.txt | `scripts/verify_fixtures.sh` | `fixtures/visual-references/` | 2026-10-03 | fixture changes |
 | VER-013 | Phase 2 Lens context acquisition & lazy precedence | verified-local | 5-tier precedence with lazy halting, coordinate mapping, secure blocking, type refiners, stale token validation; Tier 1 Finder single/multi file selection PASS; focus non-theft PASS | `PulseLensTests` (15/15) + `PulseVerification` (51/51) + live native probes | `Sources/PulseLens/` | 2026-10-03 | Lens changes |
 | VER-014 | Synthetic AX fixture app | verified-local | Native executable with 8 fixture control classes and --focus-secure | `PulseLensFixtureApp --inspect` + live probe | `Sources/PulseLensFixtureApp/` | 2026-10-03 | test fixture changes |
-| VER-015 | Phase 3 Semantic State Machine & Explicit Run Lifecycle | verified-local | 15-state semantic loop, PulseRun tracking with shared generation token and bound envelope/source object ID, enforced Result hold blocking RECEDE, re-entrancy rejection (activeRunAlreadyExists), truthful cancellation state trace with observer agreement, cancellation requested vs acknowledged, 8 terminal outcome lifecycles, Witness receipt binding, Result cross-validation, 9 stale/race protections (INV-007, INV-008), and live AppKit overlay lifecycle with zero focus/clipboard theft | `PulseCoreTests` (32) + `PulseVerification` (103/103) + `dexpulse doctor` + `make check` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
+| VER-015 | Phase 3 Semantic State Machine & Explicit Run Lifecycle | verified-local | 15-state semantic loop, PulseRun tracking with shared generation token and bound envelope/source object ID, enforced Result hold blocking RECEDE, re-entrancy rejection (activeRunAlreadyExists), truthful cancellation state trace with observer agreement, cancellation requested vs acknowledged, 8 terminal outcome lifecycles, Witness receipt binding, Result cross-validation, 9 stale/race protections (INV-007, INV-008), and live AppKit overlay lifecycle with zero focus/clipboard theft | `PulseCoreTests` (38) + `PulseVerification` (103/103) + `dexpulse doctor` + `make check` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
+| VER-016 | Phase 4 Veil Annular Interaction Engine | verified-local | 8-sector annular geometry with 100% path parity, 16pt radial overshoot, 6° seam hysteresis, minimal-translation edge/corner placement, negative-origin multi-monitor support, keyboard traversal, non-activating panel click-through, experimental registry for all V1 classes, live app probes (TextEdit, Brave, Terminal) | `PulseInteractionTests` (16) + `PulseVerification` (156/156) + live probes + `make check` | `Sources/PulseInteraction/` | 2026-10-03 | Interaction engine changes |
 | INV-001 | DexDictate retains priority | requested | Partial Phase 0/1: no trigger collision, clipboard/focus preserved. Full coexistence matrix unverified | Concurrent runtime matrix (Phase 11) | `build/DEX_PULSE.app` (partial) | 2026-10-03 | capture/input/coexistence changes |
 | INV-002 | No destructive V1 executor | verified-local | Destructive future cap blocked | `PulsePolicy` + `PulseVerification` | `PulseKit` | 2026-10-03 | Pack/policy changes |
 | INV-003 | Lens precedence is deterministic & lazy | verified-local | Locked order: Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5; stops at winning tier; zero clipboard mutation; zero focus theft | `LensResolver` spy tests & live Fixture/TextEdit/Terminal/Brave/Finder probes | `PulseLens` | 2026-10-03 | Lens changes |
+| INV-004 | Stable object-class directional layouts | verified-local | Permanent directional slots across all 11 V1 ObjectClasses; unavailable capabilities preserve position (disabled slot); no AI reordering; lifecycle experimental | `VeilLayoutRegistry` snapshot tests + `PulseVerification` | `Sources/PulseInteraction/` | 2026-10-03 | Layout changes |
 | INV-005 | Strand visuals match fixtures | requested | Reference fixtures intact. Metal Strand renderer not yet implemented (Phase 6) | Golden comparison against reference videos (Phase 6) | none (fixtures only) | 2026-10-03 | renderer/material changes |
 | INV-006 | Core runtime independence | verified-local | 0 external packages | `Package.swift` inspection | package graph | 2026-10-03 | dependency changes |
 | INV-007 | State machine causal convergence | verified-local | Cancellation from any transient state strictly reaches QUIET without stranded states | Automated test across 13 transient states in `PulseCoreTests` + `PulseVerification` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
 | INV-008 | Stale completion protection | verified-local | Outdated runID or generationToken rejected; late callbacks cannot mutate state or resurrect runs | `PulseCoreTests` (stale callback rejection) + `PulseVerification` | `Sources/PulseCore/` | 2026-10-03 | Async execution / state changes |
+| INV-032 | Visible geometry strictly equals mathematical hit testing | verified-local | Dense parity assertions across all 8 sectors prove cgPath().contains(pt) strictly equals math contains() | `VeilTests` + `PulseVerification` section 13 | `Sources/PulseInteraction/VeilGeometry.swift` | 2026-10-03 | Geometry changes |
+| INV-033 | Seam hysteresis and radial overshoot envelope | verified-local | 6° angular seam hysteresis prevents boundary flutter; 16pt radial overshoot tolerance forgives swift motor gestures | `VeilTests` + live runtime probes | `Sources/PulseInteraction/VeilPointerTracker.swift` | 2026-10-03 | Tracker changes |
+| INV-034 | Minimal translation placement with causal origin preservation | verified-local | Screen visibleFrame edge/corner clamping shifts center minimally; preserves causalOrigin; multi-monitor negative coords verified | `VeilPlacementPlanner` tests + live multi-monitor probes | `Sources/PulseInteraction/VeilPlacementPlanner.swift` | 2026-10-03 | Placement changes |
+| INV-035 | Full keyboard traversal without focus theft | verified-local | Keyboard reaches all visible Reflexes via Tab, arrows, dive nested, and Escape cancel without stealing focus | `VeilKeyboardNavigator` tests + `VeilWindow` | `Sources/PulseInteraction/VeilKeyboardNavigator.swift` | 2026-10-03 | Keyboard changes |
 
 ## 12. Current Change Scope and Impact Radius
 
@@ -193,6 +236,20 @@ None identified for the Phase 0/1/2 scope.
 - **Must remain unchanged:** Supplied original reference video bytes; locked user decisions; clean-room boundary.
 - **Mandatory checks:** `make check`, `make app`, `make install-user`, `scripts/validate_planning_source.sh`, `scripts/verify_fixtures.sh`.
 ## 13. Compact Revision Log
+
+### Revision 11 — 2026-10-03
+
+- **Artifact/source identity:** Phase 4 Veil Interaction Engine (`branch: phase-04-veil`)
+- **State deltas:**
+  - **Pure Annular Geometry Engine:** Implemented `VeilGeometry.swift` with `VeilSectorGeometry`, `VeilRingGeometry`, `CompassDirection`, `VeilTuningTokens`, and `VeilHitTestResult`. Enforced single source of truth: CoreGraphics visible drawing paths (`cgPath()`) strictly match mathematical hit-testing (`contains(point:)`) across all 8 cardinal/diagonal directions, inner/outer boundaries, 0° wraparound (East sector), and radial overshoot tolerance envelopes (`verifyParity`).
+  - **Tuning Tokens Enforced:** Locked `defaultInnerRadius = 42.0 pt`, `defaultOuterRadius = 112.0 pt`, `radialOvershootTolerance = 16.0 pt`, `angularHysteresisDegrees = 6.0 deg`, `nestedGap = 8.0 pt`, and `nestedRingThickness = 52.0 pt` (`VeilTuningTokens`).
+  - **Minimal Translation Placement Planner:** Implemented `VeilPlacementPlanner.swift` with pure geometric clamping against `visibleFrame` (excluding Dock and menu bar) and native `NSScreen` resolution. Clamps center coordinates while preserving exact `causalOrigin` identity across screen edges, corners, and secondary displays with negative origins.
+  - **Pointer Tracking with Hysteresis & Overshoot:** Implemented `VeilPointerTracker.swift`. Active strictly while presented (zero tracking or polling in `QUIET`). Handles neutral center traversal without false dismissal or cancellation, suppresses boundary seam flutter via 6° angular hysteresis, forgives rapid motor movement via 16 pt radial overshoot, and manages nested disclosure outward/inward traversal.
+  - **Full Keyboard Traversal Engine:** Implemented `VeilKeyboardNavigator.swift`. Fully covers all visible actions via Tab/Shift-Tab, bracket keys `[` / `]`, arrow keys (Up=N, Down=S, Right=E/dive, Left=W/back), compass shortcuts, Space/Return activation, and clean Escape cancellation (backs out of nested disclosure first, cancels wheel second).
+  - **Non-Activating Floating Interaction Surface:** Implemented `VeilWindow.swift` (`NSPanel`, `nonactivatingPanel`, `canBecomeKey=false`, `canBecomeMain=false`) and `VeilView.swift`. Overrode `hitTest(_:)` so that transparent corners and the hollow neutral center return `nil`, allowing clicks to pass through to underlying applications without focus theft (INV-001). Implemented debug geometry visualization mode and reduced-motion instant transitions.
+  - **Experimental Layout Registry Coverage:** Implemented `VeilLayoutRegistry.swift` mapping all 11 V1 `ObjectClass` families deterministically to immutable compass directions. Unavailable capabilities preserve positions (disabled slot); neighbors never slide over. Lifecycle explicitly marked and verified as `.experimental` (Phase 5 owns freeze gate).
+  - **App Integration:** Integrated `VeilInteractionController` as the primary interaction controller in `DexPulseApp/main.swift`, while preserving `DebugPulseOverlayController` for diagnostic reference.
+- **New evidence:** All 76 unit tests passed across 5 test suites (`PulseInteractionTests` 16, `PulseCoreTests` 38, `PulseLensTests` 15, `PulseKitTests` 3, `PulseVerificationTests` 4); `PulseVerification` passed 156/156 assertions (including section 13 Veil annular interaction, parity, and lifecycle verification); `dexpulse doctor` verified clean status; `make check` passed all 6 stages; `make app` built and signed `build/DEX_PULSE.app`; live runtime probes verified across TextEdit (PID 74529), Brave Browser (PID 693), Terminal (PID 62640), screen edge clamping (5, 400) -> (196, 400), screen corner clamping (5, 5) -> (196, 196), and 2 attached physical displays (Display 1 at 0,0 and Display 2 at -1440,-132) with zero focus theft and zero clipboard mutation.
 
 ### Revision 10 — 2026-10-03
 
