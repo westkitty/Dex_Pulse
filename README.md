@@ -39,7 +39,23 @@ The uploaded visual reference videos are repository fixtures, not mood-board sug
 
 ## Current state
 
-Planning/source-of-truth foundation is published and byte-verified at baseline commit `76e3560d4e6cc3604408f5f66e0ea8fc91d6964c`. No application code has been implemented or behaviorally verified yet.
+Phase 0/1 native bootstrap foundation active on Apple Silicon macOS 14+. Core Swift Package graph, native AppKit utility shell (`DEX_PULSE.app`), diagnostic CLI (`dexpulse doctor`), headless verifier (`PulseVerification`), and pre-commit gate (`make check`) are implemented and verified.
+
+## Build and verification
+
+```sh
+# Single deterministic pre-commit quality gate (validates source, fixtures, build, tests, verifier, doctor)
+make check
+
+# Build native macOS application bundle (build/DEX_PULSE.app)
+make app
+
+# Install application and CLI into user directories (~/Applications and ~/.local/bin)
+make install-user
+
+# Verify canonical visual fixtures against SHA-256 sums
+make verify-fixtures
+```
 
 ## Provisional choices
 

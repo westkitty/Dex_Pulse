@@ -1,0 +1,34 @@
+name: DEX//PULSE CI
+
+on:
+  push:
+    branches: [ "main", "phase-**" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate-and-test:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate planning source & fixtures
+        run: |
+          sh scripts/validate_planning_source.sh
+          sh scripts/verify_fixtures.sh
+
+      - name: Build Swift package (Release)
+        run: swift build -c release
+
+      - name: Run unit test suite
+        run: sh scripts/run_tests.sh
+
+      - name: Run deterministic headless verifier
+        run: .build/release/PulseVerification
+
+      - name: Run diagnostic doctor
+        run: .build/release/dexpulse doctor
+
+      - name: Assemble native macOS .app bundle
+        run: sh scripts/build_app.sh

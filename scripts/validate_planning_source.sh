@@ -16,6 +16,7 @@ fi
 
 # Public-source guard: reject obvious private-home paths or secret-file patterns in tracked planning text.
 if grep -R -n -E '/Users/(andrew|bigmac)/|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9_-]{20,}' \
+  --exclude-dir='.build' --exclude-dir='build' --exclude-dir='.git' \
   --include='*.md' --include='*.json' --include='*.swift' --include='*.sh' .; then
   echo "planning source contains a forbidden private-path/secret pattern" >&2
   exit 1

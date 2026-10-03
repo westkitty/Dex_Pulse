@@ -27,3 +27,6 @@ dist/
 *.sqlite-shm
 *.sqlite-wal
 *.db
+
+# Temporary unpack directory
+dex_pulse_repo_package/
