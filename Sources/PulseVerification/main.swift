@@ -5,6 +5,13 @@ import PulseKit
 import PulseWitness
 import PulseLens
 import PulseVisuals
+struct MockVerificationProvider: LensAcquisitionProvider {
+    let tier: LensPrecedenceTier
+    let candidate: LensCandidate?
+    func acquireCandidate(at screenPoint: (x: Double, y: Double)?) -> LensCandidate? {
+        candidate
+    }
+}
 
 final class PulseVerifier {
     private var passed = 0
@@ -176,6 +183,15 @@ final class PulseVerifier {
 
         let p5 = LensResolver.resolvePrimary(from: [c5])
         assert(p5?.tier == .clipboardFallback, "Clipboard fallback (tier 5) resolves when higher tiers absent")
+
+        // Verify lazy acquisition: Tier 1 candidate present -> Tier 5 clipboard never evaluated
+        let mockT1 = MockVerificationProvider(tier: .selectedContent, candidate: c1)
+        let mockT5 = MockVerificationProvider(tier: .clipboardFallback, candidate: c5)
+        let lazyEnv = LensResolver.acquireContextEnvelope(providers: [mockT1, mockT5])
+        assert(lazyEnv.primaryTier == 1, "Lazy acquisition stopped at Tier 1")
+        assert(lazyEnv.fallbackObject == nil, "Fallback object is nil when higher tier succeeds alone")
+        assert(lazyEnv.evaluatedCandidates.count == 1, "Only Tier 1 candidate retained in envelope when Tier 1 succeeds")
+        assert(!lazyEnv.evaluatedCandidates.contains { $0.tierRawValue == 5 }, "Clipboard candidate excluded from envelope when Tier 1 succeeds")
     }
 
     private func verifyLensCoordinates() {
@@ -197,6 +213,12 @@ final class PulseVerifier {
         print("\n[7] Verifying Accessibility Authorizer...")
         let status = AccessibilityAuthorizer.checkStatus()
         assert(status == .authorized || status == .denied, "AccessibilityAuthorizer returns valid non-blocking status: \(status.rawValue)")
+
+        AccessibilityAuthorizer.overrideStatus = .denied
+        let deniedEnv = LensResolver.acquireContextEnvelope()
+        assert(deniedEnv.accessibilityStatus == "denied", "Injectable authorizer override correctly sets accessibilityStatus to denied")
+        assert(deniedEnv.degradationReasons.contains(.accessibilityPermissionDenied), "Envelope records accessibilityPermissionDenied degradation reason")
+        AccessibilityAuthorizer.overrideStatus = nil
     }
 
     private func verifyLensTypeRefiners() {

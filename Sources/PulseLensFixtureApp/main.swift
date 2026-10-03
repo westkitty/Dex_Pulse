@@ -106,8 +106,12 @@ final class FixtureWindowController: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Check command-line argument for auto-termination (used in automated testing)
         let args = CommandLine.arguments
+        if args.contains("--focus-secure") {
+            window.makeFirstResponder(secureField)
+        }
+
+        // Check command-line argument for auto-termination (used in automated testing)
         if let idx = args.firstIndex(of: "--run-seconds"), idx + 1 < args.count,
            let seconds = Double(args[idx + 1]) {
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {

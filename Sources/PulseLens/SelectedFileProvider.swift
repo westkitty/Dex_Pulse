@@ -24,6 +24,7 @@ public struct SelectedFileProvider: LensAcquisitionProvider {
 
         guard let pid = frontPID else { return nil }
         let appElement = AXUIElementCreateApplication(pid)
+        AXTimeoutHelper.applyTimeout(to: appElement)
 
         // Query focused element or window
         var focusedRef: CFTypeRef?
@@ -32,6 +33,7 @@ public struct SelectedFileProvider: LensAcquisitionProvider {
             return nil
         }
         let focusedElement = (focused as! AXUIElement)
+        AXTimeoutHelper.applyTimeout(to: focusedElement)
 
         var selectedPaths: [String] = []
 
@@ -39,12 +41,17 @@ public struct SelectedFileProvider: LensAcquisitionProvider {
         var selectedChildrenRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(focusedElement, "AXSelectedChildren" as CFString, &selectedChildrenRef) == .success,
            let children = selectedChildrenRef as? [AXUIElement] {
-            for child in children {
+            for child in children.prefix(50) {
+                AXTimeoutHelper.applyTimeout(to: child)
                 var urlRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, "AXURL" as CFString, &urlRef) == .success,
-                   let urlStr = urlRef as? String,
-                   let url = URL(string: urlStr), url.isFileURL {
-                    selectedPaths.append(url.path)
+                   let ref = urlRef {
+                    if let url = ref as? URL, url.isFileURL {
+                        selectedPaths.append(url.path)
+                    } else if let urlStr = ref as? String,
+                              let url = URL(string: urlStr), url.isFileURL {
+                        selectedPaths.append(url.path)
+                    }
                 } else {
                     var filenameRef: CFTypeRef?
                     if AXUIElementCopyAttributeValue(child, "AXFilenames" as CFString, &filenameRef) == .success,
@@ -68,9 +75,13 @@ public struct SelectedFileProvider: LensAcquisitionProvider {
         if selectedPaths.isEmpty {
             var urlRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(focusedElement, "AXURL" as CFString, &urlRef) == .success,
-               let urlStr = urlRef as? String,
-               let url = URL(string: urlStr), url.isFileURL {
-                selectedPaths.append(url.path)
+               let ref = urlRef {
+                if let url = ref as? URL, url.isFileURL {
+                    selectedPaths.append(url.path)
+                } else if let urlStr = ref as? String,
+                          let url = URL(string: urlStr), url.isFileURL {
+                    selectedPaths.append(url.path)
+                }
             }
         }
 

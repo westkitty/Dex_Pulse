@@ -13,10 +13,17 @@ public enum AccessibilityAuthorizationStatus: String, Sendable, Codable {
 /// Follows strict non-nagging doctrine: never invokes prompts on the hot path
 /// and never blocks the calling thread.
 public struct AccessibilityAuthorizer: Sendable {
+    /// Injectable authorization status override for testing isolated permission journeys
+    /// without resetting macOS TCC permissions globally.
+    public static var overrideStatus: AccessibilityAuthorizationStatus? = nil
+
     public init() {}
 
     /// Checks current process Accessibility authorization without presenting a system prompt.
     public static func checkStatus() -> AccessibilityAuthorizationStatus {
+        if let override = overrideStatus {
+            return override
+        }
         let isTrusted = AXIsProcessTrusted()
         return isTrusted ? .authorized : .denied
     }

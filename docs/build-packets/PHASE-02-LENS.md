@@ -7,25 +7,25 @@ Build the native invocation-time context acquisition system (`PulseLens`) that c
 ## Scope
 
 - Centralized coordinate translation (`LensCoordinates`) between AppKit screen coordinates (bottom-left origin) and CoreGraphics/Accessibility coordinates (top-left origin).
-- Accessibility authorization probe (`AccessibilityAuthorizer`) checking process trust status non-invasively.
-- Native candidate providers implementing `LensAcquisitionProvider`:
+- Accessibility authorization probe (`AccessibilityAuthorizer`) checking process trust status non-invasively, supporting test injection override and non-fatal degradation reporting.
+- Native candidate providers implementing `LensAcquisitionProvider` with native AX messaging timeouts (`AXTimeoutHelper` / `AXUIElementSetMessagingTimeout`):
   1. `SelectedTextProvider` & `SelectedFileProvider` (Tier 1: Explicit selected content).
   2. `PointerElementProvider` (Tier 2: UI element under pointer via `AXUIElementCopyElementAtPosition`).
   3. `FocusedElementProvider` (Tier 3: Focused Accessibility element).
   4. `FrontmostAppProvider` (Tier 4: Frontmost application and window).
   5. `ClipboardFallbackProvider` (Tier 5: Read-only existing clipboard snapshot).
-- Deterministic resolver (`LensResolver`) enforcing Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5 with confidence and evidence rationale.
+- Deterministic lazy resolver (`LensResolver`) enforcing tier-by-tier evaluation (Tier 1 -> Tier 2 -> Tier 3 -> Tier 4 -> Tier 5) that immediately halts upon discovering a candidate, guaranteeing lower tiers (including Tier 5 clipboard fallback) are never invoked when higher tiers succeed.
 - Deterministic type refinement (`TypeRefiners`) recognizing URL, file path, code snippet, error log, and JSON from raw text while preserving original object ancestry and provenance.
-- Security and privacy protection: blocking payload capture from secure/password fields (`privacyClass = .secureBlocked`).
+- Security and privacy protection: blocking payload capture from secure/password fields (`privacyClass = .secureBlocked`) with zero secret leak and explicit degradation reporting.
 - Stale context validation (`StaleContextValidator`) with generation tokens and live reference verification.
-- Synthetic Accessibility test fixture application (`PulseLensFixtureApp`) for headless and interactive validation of controls, secure fields, selectable text, and duplicated labels.
-- Integration into `dexpulse doctor`, `PulseVerification`, and unit test suite.
+- Synthetic Accessibility test fixture application (`PulseLensFixtureApp`) with `--focus-secure` for headless and interactive validation of controls, secure fields, selectable text, and duplicated labels.
+- Integration into `dexpulse doctor`, `dexpulse probe`, `PulseVerification`, and unit test suite.
 
 ## Protected Invariants
 
-- **INV-001 (DexDictate Priority):** Pulse invocation and Lens acquisition must never mutate the clipboard, clear/swap pasteboard contents, alter frontmost application focus, or inject synthetic keystrokes (`Cmd-C`). Existing clipboard content is strictly read-only and evaluated only as the lowest fallback tier.
+- **INV-001 (DexDictate Priority):** Pulse invocation and Lens acquisition must never mutate the clipboard, clear/swap pasteboard contents, alter frontmost application focus, or inject synthetic keystrokes (`Cmd-C`). Existing clipboard content is strictly read-only and evaluated only as the lowest fallback tier. Under true lazy precedence, clipboard inspection is never invoked when Tiers 1–4 produce a usable object.
 - **INV-002 (No Destructive Execution):** Lens only inspects UI elements and context metadata; it never invokes UI actions or executes destructive reflexes.
-- **INV-003 (Deterministic Precedence):** Precedence order is locked (Selected Content > Pointer Element > Focused Element > Frontmost App/Window > Clipboard Fallback). Resolution does not rely on heuristics, AI, or timing races.
+- **INV-003 (Deterministic Lazy Precedence):** Precedence order is locked (Selected Content > Pointer Element > Focused Element > Frontmost App/Window > Clipboard Fallback). Acquisition is evaluated tier-by-tier and halts immediately when a tier succeeds. Lower tiers are never invoked. Confidence tie-breaking operates strictly within the same tier and never crosses tier boundaries.
 - **INV-006 (Core Runtime Independence):** Zero third-party dependencies; uses native macOS frameworks (`ApplicationServices`, `AppKit`, `Foundation`).
 
 ## Tasks

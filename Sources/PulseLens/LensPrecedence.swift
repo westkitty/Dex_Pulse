@@ -77,33 +77,54 @@ public struct LensResolver: Sendable {
         ]
 
         let generationToken = UUID().uuidString
-        var discoveredCandidates: [LensCandidate] = []
+        let authStatus = AccessibilityAuthorizer.checkStatus()
+        var degradationReasons: [ContextDegradationReason] = []
+        if authStatus == .denied {
+            degradationReasons.append(.accessibilityPermissionDenied)
+        }
 
-        for provider in activeProviders {
-            if let candidate = provider.acquireCandidate(at: screenPoint) {
-                // If candidate is a text selection, deterministically refine it
-                let refinedObject = TypeRefiners.refine(object: candidate.object)
-                let refinedCandidate = LensCandidate(
-                    tier: candidate.tier,
-                    object: refinedObject,
-                    confidence: candidate.confidence,
-                    acquisitionReason: candidate.acquisitionReason
-                )
-                discoveredCandidates.append(refinedCandidate)
+        var winningCandidates: [LensCandidate] = []
+
+        // Evaluate tier by tier in strict precedence order (Tier 1 -> Tier 2 -> Tier 3 -> Tier 4 -> Tier 5)
+        let tiersToEvaluate = Array(Set(activeProviders.map(\.tier))).sorted()
+
+        for tier in tiersToEvaluate {
+            let tierProviders = activeProviders.filter { $0.tier == tier }
+            var tierCandidates: [LensCandidate] = []
+
+            for provider in tierProviders {
+                if let candidate = provider.acquireCandidate(at: screenPoint) {
+                    // If candidate is a text selection, deterministically refine it
+                    let refinedObject = TypeRefiners.refine(object: candidate.object)
+                    let refinedCandidate = LensCandidate(
+                        tier: candidate.tier,
+                        object: refinedObject,
+                        confidence: candidate.confidence,
+                        acquisitionReason: candidate.acquisitionReason
+                    )
+                    tierCandidates.append(refinedCandidate)
+                }
+            }
+
+            if !tierCandidates.isEmpty {
+                // Candidates discovered in this tier: sort by confidence descending
+                tierCandidates.sort { $0.confidence > $1.confidence }
+                winningCandidates = tierCandidates
+                // Hard Precedence Stop (INV-003): Never evaluate lower tiers once a higher tier succeeds
+                break
             }
         }
 
-        let sorted = discoveredCandidates.sorted {
-            if $0.tier != $1.tier {
-                return $0.tier < $1.tier
+        let primary = winningCandidates.first
+        let fallback = winningCandidates.count > 1 ? winningCandidates[1].object : nil
+
+        if let primaryObj = primary?.object, primaryObj.privacyClass == .secureBlocked {
+            if !degradationReasons.contains(.secureFieldBlocked) {
+                degradationReasons.append(.secureFieldBlocked)
             }
-            return $0.confidence > $1.confidence
         }
 
-        let primary = sorted.first
-        let fallback = sorted.first(where: { $0.tier == .clipboardFallback && $0.tier != primary?.tier })
-
-        let candidateSnapshots = sorted.map { cand in
+        let candidateSnapshots = winningCandidates.map { cand in
             ContextCandidateSnapshot(
                 tierRawValue: cand.tier.rawValue,
                 objectClass: cand.object.objectClass,
@@ -120,8 +141,10 @@ public struct LensResolver: Sendable {
             primaryObject: primary?.object,
             primaryReason: primary?.acquisitionReason,
             primaryTier: primary?.tier.rawValue,
-            fallbackObject: fallback?.object,
-            evaluatedCandidates: candidateSnapshots
+            fallbackObject: fallback,
+            evaluatedCandidates: candidateSnapshots,
+            accessibilityStatus: authStatus.rawValue,
+            degradationReasons: degradationReasons
         )
     }
 }

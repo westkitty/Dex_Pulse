@@ -267,4 +267,196 @@ struct PulseLensTests {
             #expect(candidate?.object.objectClass == .clipboard)
         }
     }
+
+    @Test("Lazy precedence stops immediately at Tier 1 and never calls Tiers 2-5")
+    func testLazyPrecedenceStopsAtTier1() {
+        let prov = ObjectProvenance(acquisitionMethod: "spy-test")
+        let t1Obj = SelectedTextObject(text: "Selected text", provenance: prov)
+        let t1Candidate = LensCandidate(tier: .selectedContent, object: t1Obj, acquisitionReason: "Tier 1 text")
+
+        let spy1 = SpyAcquisitionProvider(tier: .selectedContent, candidate: t1Candidate)
+        let spy2 = SpyAcquisitionProvider(tier: .pointerUIElement, candidate: nil)
+        let spy3 = SpyAcquisitionProvider(tier: .focusedAXElement, candidate: nil)
+        let spy4 = SpyAcquisitionProvider(tier: .frontmostAppOrWindow, candidate: nil)
+        let spy5 = SpyAcquisitionProvider(tier: .clipboardFallback, candidate: nil)
+
+        let envelope = LensResolver.acquireContextEnvelope(providers: [spy1, spy2, spy3, spy4, spy5])
+
+        #expect(spy1.callCount == 1)
+        #expect(spy2.callCount == 0)
+        #expect(spy3.callCount == 0)
+        #expect(spy4.callCount == 0)
+        #expect(spy5.callCount == 0)
+
+        #expect(envelope.primaryTier == 1)
+        #expect(envelope.fallbackObject == nil)
+        #expect(envelope.evaluatedCandidates.count == 1)
+    }
+
+    @Test("Lazy precedence stops immediately at Tier 2 and never calls Tiers 3-5")
+    func testLazyPrecedenceStopsAtTier2() {
+        let prov = ObjectProvenance(acquisitionMethod: "spy-test")
+        let t2Obj = UIElementObject(role: "AXButton", title: "OK", applicationName: "App", provenance: prov)
+        let t2Candidate = LensCandidate(tier: .pointerUIElement, object: t2Obj, acquisitionReason: "Tier 2 button")
+
+        let spy1 = SpyAcquisitionProvider(tier: .selectedContent, candidate: nil)
+        let spy2 = SpyAcquisitionProvider(tier: .pointerUIElement, candidate: t2Candidate)
+        let spy3 = SpyAcquisitionProvider(tier: .focusedAXElement, candidate: nil)
+        let spy4 = SpyAcquisitionProvider(tier: .frontmostAppOrWindow, candidate: nil)
+        let spy5 = SpyAcquisitionProvider(tier: .clipboardFallback, candidate: nil)
+
+        let envelope = LensResolver.acquireContextEnvelope(providers: [spy1, spy2, spy3, spy4, spy5])
+
+        #expect(spy1.callCount == 1)
+        #expect(spy2.callCount == 1)
+        #expect(spy3.callCount == 0)
+        #expect(spy4.callCount == 0)
+        #expect(spy5.callCount == 0)
+
+        #expect(envelope.primaryTier == 2)
+        #expect(envelope.fallbackObject == nil)
+        #expect(envelope.evaluatedCandidates.count == 1)
+    }
+
+    @Test("Lazy precedence stops immediately at Tier 3 and never calls Tiers 4-5")
+    func testLazyPrecedenceStopsAtTier3() {
+        let prov = ObjectProvenance(acquisitionMethod: "spy-test")
+        let t3Obj = FocusedElementObject(role: "AXTextField", title: "Search", applicationName: "App", provenance: prov)
+        let t3Candidate = LensCandidate(tier: .focusedAXElement, object: t3Obj, acquisitionReason: "Tier 3 search")
+
+        let spy1 = SpyAcquisitionProvider(tier: .selectedContent, candidate: nil)
+        let spy2 = SpyAcquisitionProvider(tier: .pointerUIElement, candidate: nil)
+        let spy3 = SpyAcquisitionProvider(tier: .focusedAXElement, candidate: t3Candidate)
+        let spy4 = SpyAcquisitionProvider(tier: .frontmostAppOrWindow, candidate: nil)
+        let spy5 = SpyAcquisitionProvider(tier: .clipboardFallback, candidate: nil)
+
+        let envelope = LensResolver.acquireContextEnvelope(providers: [spy1, spy2, spy3, spy4, spy5])
+
+        #expect(spy1.callCount == 1)
+        #expect(spy2.callCount == 1)
+        #expect(spy3.callCount == 1)
+        #expect(spy4.callCount == 0)
+        #expect(spy5.callCount == 0)
+
+        #expect(envelope.primaryTier == 3)
+        #expect(envelope.fallbackObject == nil)
+        #expect(envelope.evaluatedCandidates.count == 1)
+    }
+
+    @Test("Lazy precedence stops immediately at Tier 4 and never calls Tier 5 (clipboard)")
+    func testLazyPrecedenceStopsAtTier4() {
+        let prov = ObjectProvenance(acquisitionMethod: "spy-test")
+        let t4Obj = ApplicationObject(applicationName: "Terminal", pid: 1234, provenance: prov)
+        let t4Candidate = LensCandidate(tier: .frontmostAppOrWindow, object: t4Obj, acquisitionReason: "Tier 4 app")
+
+        let spy1 = SpyAcquisitionProvider(tier: .selectedContent, candidate: nil)
+        let spy2 = SpyAcquisitionProvider(tier: .pointerUIElement, candidate: nil)
+        let spy3 = SpyAcquisitionProvider(tier: .focusedAXElement, candidate: nil)
+        let spy4 = SpyAcquisitionProvider(tier: .frontmostAppOrWindow, candidate: t4Candidate)
+        let spy5 = SpyAcquisitionProvider(tier: .clipboardFallback, candidate: nil)
+
+        let envelope = LensResolver.acquireContextEnvelope(providers: [spy1, spy2, spy3, spy4, spy5])
+
+        #expect(spy1.callCount == 1)
+        #expect(spy2.callCount == 1)
+        #expect(spy3.callCount == 1)
+        #expect(spy4.callCount == 1)
+        #expect(spy5.callCount == 0)
+
+        #expect(envelope.primaryTier == 4)
+        #expect(envelope.fallbackObject == nil)
+        #expect(envelope.evaluatedCandidates.count == 1)
+    }
+
+    @Test("Tier 5 clipboard is evaluated ONLY when Tiers 1-4 all produce no candidate")
+    func testLazyPrecedenceEvaluatesTier5OnlyWhenHigherFail() {
+        let prov = ObjectProvenance(acquisitionMethod: "spy-test")
+        let t5Obj = ClipboardObject(changeCount: 1, types: [], textPreview: "text", provenance: prov)
+        let t5Candidate = LensCandidate(tier: .clipboardFallback, object: t5Obj, acquisitionReason: "Tier 5 clip")
+
+        let spy1 = SpyAcquisitionProvider(tier: .selectedContent, candidate: nil)
+        let spy2 = SpyAcquisitionProvider(tier: .pointerUIElement, candidate: nil)
+        let spy3 = SpyAcquisitionProvider(tier: .focusedAXElement, candidate: nil)
+        let spy4 = SpyAcquisitionProvider(tier: .frontmostAppOrWindow, candidate: nil)
+        let spy5 = SpyAcquisitionProvider(tier: .clipboardFallback, candidate: t5Candidate)
+
+        let envelope = LensResolver.acquireContextEnvelope(providers: [spy1, spy2, spy3, spy4, spy5])
+
+        #expect(spy1.callCount == 1)
+        #expect(spy2.callCount == 1)
+        #expect(spy3.callCount == 1)
+        #expect(spy4.callCount == 1)
+        #expect(spy5.callCount == 1)
+
+        #expect(envelope.primaryTier == 5)
+        #expect(envelope.evaluatedCandidates.count == 1)
+    }
+
+    @Test("Real ClipboardFallbackProvider is never invoked when Tier 1 succeeds")
+    func testRealClipboardNeverInvokedWhenTier1Wins() {
+        let prov = ObjectProvenance(acquisitionMethod: "test")
+        let t1Obj = SelectedTextObject(text: "Selected text", provenance: prov)
+        let t1Candidate = LensCandidate(tier: .selectedContent, object: t1Obj, acquisitionReason: "Tier 1 text")
+
+        let spy1 = SpyAcquisitionProvider(tier: .selectedContent, candidate: t1Candidate)
+        let realClipboard = ClipboardFallbackProvider()
+
+        let envelope = LensResolver.acquireContextEnvelope(providers: [spy1, realClipboard])
+
+        #expect(envelope.primaryTier == 1)
+        #expect(envelope.fallbackObject == nil)
+        #expect(envelope.evaluatedCandidates.count == 1)
+        #expect(envelope.evaluatedCandidates.first?.tierRawValue == 1)
+    }
+
+    @Test("Injectable permission denial reports accessibilityPermissionDenied degradation and falls back gracefully")
+    func testInjectableAccessibilityPermissionDenied() {
+        AccessibilityAuthorizer.overrideStatus = .denied
+        defer {
+            AccessibilityAuthorizer.overrideStatus = nil
+        }
+
+        let envelope = LensResolver.acquireContextEnvelope()
+
+        #expect(envelope.accessibilityStatus == "denied")
+        #expect(envelope.degradationReasons.contains(.accessibilityPermissionDenied))
+        // When AX is denied, Tier 4 (FrontmostAppProvider) still captures the running process without crashing
+        #expect(envelope.primaryTier == 4 || envelope.primaryTier == nil || envelope.primaryTier == 5)
+    }
+}
+
+final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _count = 0
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _count
+    }
+    func increment() {
+        lock.lock()
+        defer { lock.unlock() }
+        _count += 1
+    }
+}
+
+struct SpyAcquisitionProvider: LensAcquisitionProvider {
+    let tier: LensPrecedenceTier
+    let candidateToReturn: LensCandidate?
+    let counter: CallCounter
+
+    var callCount: Int {
+        counter.count
+    }
+
+    init(tier: LensPrecedenceTier, candidate: LensCandidate? = nil, counter: CallCounter = CallCounter()) {
+        self.tier = tier
+        self.candidateToReturn = candidate
+        self.counter = counter
+    }
+
+    func acquireCandidate(at screenPoint: (x: Double, y: Double)?) -> LensCandidate? {
+        counter.increment()
+        return candidateToReturn
+    }
 }

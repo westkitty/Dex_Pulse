@@ -286,6 +286,10 @@ if args.contains("probe") {
     if let pt = probePoint {
         print(" Screen Point:     (\(pt.x), \(pt.y)) [CG/AX]")
     }
+    print(" Accessibility:    \(envelope.accessibilityStatus)")
+    if !envelope.degradationReasons.isEmpty {
+        print(" Degradation:      \(envelope.degradationReasons.map(\.rawValue).joined(separator: ", "))")
+    }
     if let primary = envelope.primaryObject {
         print(" Primary Object:   [\(primary.objectClass.rawValue)] \(primary.summary)")
         print(" Primary Tier:     \(envelope.primaryTier.map { "Tier \($0)" } ?? "none")")

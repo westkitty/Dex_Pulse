@@ -29,6 +29,7 @@ public struct SelectedTextProvider: LensAcquisitionProvider {
         var targetElement: AXUIElement?
         if let pid = frontPID {
             let appElement = AXUIElementCreateApplication(pid)
+            AXTimeoutHelper.applyTimeout(to: appElement)
             var focusedRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
                let focused = focusedRef {
@@ -39,6 +40,7 @@ public struct SelectedTextProvider: LensAcquisitionProvider {
         // Fallback to system-wide focused element if application probe was empty
         if targetElement == nil {
             let systemWide = AXUIElementCreateSystemWide()
+            AXTimeoutHelper.applyTimeout(to: systemWide)
             var focusedRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
                let focused = focusedRef {
@@ -49,6 +51,7 @@ public struct SelectedTextProvider: LensAcquisitionProvider {
         guard let element = targetElement else {
             return nil
         }
+        AXTimeoutHelper.applyTimeout(to: element)
 
         // 2. Check role and subrole for secure / password fields
         var roleRef: CFTypeRef?

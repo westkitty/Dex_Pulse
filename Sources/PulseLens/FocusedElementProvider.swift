@@ -23,6 +23,7 @@ public struct FocusedElementProvider: LensAcquisitionProvider {
 
         if let pid = frontPID {
             let appElement = AXUIElementCreateApplication(pid)
+            AXTimeoutHelper.applyTimeout(to: appElement)
             var focusedRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
                let focused = focusedRef {
@@ -32,6 +33,7 @@ public struct FocusedElementProvider: LensAcquisitionProvider {
 
         if focusedElementRef == nil {
             let systemWide = AXUIElementCreateSystemWide()
+            AXTimeoutHelper.applyTimeout(to: systemWide)
             var focusedRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
                let focused = focusedRef {
@@ -42,6 +44,7 @@ public struct FocusedElementProvider: LensAcquisitionProvider {
         guard let focusedElement = focusedElementRef else {
             return nil
         }
+        AXTimeoutHelper.applyTimeout(to: focusedElement)
 
         var roleRef: CFTypeRef?
         var subroleRef: CFTypeRef?

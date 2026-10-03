@@ -24,6 +24,7 @@ public struct PointerElementProvider: LensAcquisitionProvider {
         }
 
         let systemWide = AXUIElementCreateSystemWide()
+        AXTimeoutHelper.applyTimeout(to: systemWide)
         var hitElementRef: AXUIElement?
 
         let axError = AXUIElementCopyElementAtPosition(
@@ -36,6 +37,7 @@ public struct PointerElementProvider: LensAcquisitionProvider {
         guard axError == .success, let hitElement = hitElementRef else {
             return nil
         }
+        AXTimeoutHelper.applyTimeout(to: hitElement)
 
         // 1. Extract Role & Subrole
         var roleRef: CFTypeRef?

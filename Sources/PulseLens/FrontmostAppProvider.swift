@@ -22,11 +22,14 @@ public struct FrontmostAppProvider: LensAcquisitionProvider {
 
         if AccessibilityAuthorizer.checkStatus() == .authorized {
             let appElement = AXUIElementCreateApplication(pid)
+            AXTimeoutHelper.applyTimeout(to: appElement)
             var windowRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
                let windowElem = windowRef {
+                let elem = (windowElem as! AXUIElement)
+                AXTimeoutHelper.applyTimeout(to: elem)
                 var titleRef: CFTypeRef?
-                if AXUIElementCopyAttributeValue((windowElem as! AXUIElement), kAXTitleAttribute as CFString, &titleRef) == .success {
+                if AXUIElementCopyAttributeValue(elem, kAXTitleAttribute as CFString, &titleRef) == .success {
                     windowTitle = titleRef as? String
                 }
             }

@@ -683,6 +683,16 @@ public struct ContextCandidateSnapshot: Sendable {
     }
 }
 
+/// Context degradation reasons capturing non-fatal provider issues or permission limitations.
+public enum ContextDegradationReason: String, Sendable, Codable, Equatable {
+    case accessibilityPermissionDenied = "accessibility.permissionDenied"
+    case accessibilityUnavailable = "accessibility.unavailable"
+    case accessibilityTimedOut = "accessibility.timedOut"
+    case secureFieldBlocked = "privacy.secureFieldBlocked"
+    case staleContextDetected = "staleContext.invalidated"
+    case providerUnsupported = "provider.unsupported"
+}
+
 /// Context envelope capturing invocation context atomically.
 public struct PulseContextEnvelope: Sendable {
     public let id: UUID
@@ -694,6 +704,8 @@ public struct PulseContextEnvelope: Sendable {
     public let primaryTier: Int?
     public let fallbackObject: (any PulseObject)?
     public let evaluatedCandidates: [ContextCandidateSnapshot]
+    public let accessibilityStatus: String
+    public let degradationReasons: [ContextDegradationReason]
 
     public init(
         id: UUID = UUID(),
@@ -704,7 +716,9 @@ public struct PulseContextEnvelope: Sendable {
         primaryReason: String? = nil,
         primaryTier: Int? = nil,
         fallbackObject: (any PulseObject)? = nil,
-        evaluatedCandidates: [ContextCandidateSnapshot] = []
+        evaluatedCandidates: [ContextCandidateSnapshot] = [],
+        accessibilityStatus: String = "authorized",
+        degradationReasons: [ContextDegradationReason] = []
     ) {
         self.id = id
         self.invocationTime = invocationTime
@@ -715,5 +729,7 @@ public struct PulseContextEnvelope: Sendable {
         self.primaryTier = primaryTier
         self.fallbackObject = fallbackObject
         self.evaluatedCandidates = evaluatedCandidates
+        self.accessibilityStatus = accessibilityStatus
+        self.degradationReasons = degradationReasons
     }
 }
