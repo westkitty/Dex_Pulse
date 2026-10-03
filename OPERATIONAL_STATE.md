@@ -74,12 +74,12 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 - **Status:** active
 
 ### INV-004 — Stable object-class directional layouts
-- **State:** `verified-local` (experimental tier)
+- **State:** `verified-local` (candidate tier)
 - **Rule:** Each recognized object class has a stable directional layout; Pulse must not silently AI-reorder learned Reflexes.
 - **Scope:** Veil presentation and habit suggestions.
 - **Authority:** Explicit user decision (INV-031).
 - **Validation method:** Layout snapshot fixtures and determinism unit tests (`VeilTests`, `VeilLayoutRegistry`).
-- **Evidence:** `VeilLayoutRegistry` covers all 11 V1 `ObjectClass` families deterministically with immutable compass directions. Unavailable capabilities preserve positions (disabled slots); neighbors never slide over. Lifecycle explicitly marked and verified as `.experimental` (Phase 5 owns candidate/frozen tiers).
+- **Evidence:** `VeilLayoutRegistry` covers all 18 V1 `ObjectClass` values deterministically with immutable compass directions (10 candidate layouts at version 1.0.0-candidate, 8 experimental layouts at version 1.0.0-experimental, 0 frozen layouts). Unavailable capabilities preserve positions (disabled slots); neighbors never slide over. Candidate layouts are immutable at runtime; freeze strictly requires human owner review via explicit source code change and ADR/migration record.
 - **Status:** active
 
 ### INV-032 — Visible geometry strictly equals mathematical hit testing
@@ -181,7 +181,7 @@ None identified for the Phase 0/1/2/3/4 scope.
 - **UNV-003:** Electron/VS Code AX tree inspection edge cases: VS Code unavailable on test machine (`NOT TESTED — APPLICATION UNAVAILABLE`). Native AX and WebArea elements verified live in Brave Browser, TextEdit, Terminal, and fixture app.
 - **UNV-004:** Full DexDictate coexistence contract (selection preservation during active dictation, Accessibility insertion-target identity, transcription delivery, browser AX behavior under concurrent operation, Undo Last Dictation semantics, and conflict-yield behavior; scheduled for Phase 11).
 - **UNV-005:** Canonical Strand renderer fidelity (Metal Strand renderer does not exist yet; ribbon geometry, twist, transverse barcode segmentation, crossings, glow restraint, face/edge/underside behavior, and motion fidelity belong to Phase 6).
-- **UNV-006:** Phase 5 layout freeze work remains unverified. All V1 directional layouts remain explicitly marked and verified as `.experimental`; layout freezing, user trials, and misfire analysis belong to Phase 5.
+- **UNV-006:** Phase 5 layout freeze work remains unverified. 10 layouts in candidate status, 8 in experimental status, 0 frozen; real owner trials and habit evidence pending owner review.
 
 ## 8. Unknown or Evidence-Stale State
 
@@ -191,7 +191,7 @@ None identified for the Phase 0/1/2/3/4 scope.
 
 ## 9. Pending Work
 
-- **PND-005:** Phase 5: Interaction refinement, real-world trials, misfire analysis, and layout freeze.
+- **PND-005:** Phase 5: Owner review of candidate layouts and 8 ambiguous classes in PHASE-05-OWNER-REVIEW.md; real owner-use trials and layout freeze via explicit source code change and ADR/migration.
 - **PND-006:** Phase 6: Implement canonical Pulsefront and Metal Strand renderer against visual fixtures.
 - **PND-007:** Phase 8: Core V1 Packs (Core macOS, Git, Ollama).
 
@@ -218,11 +218,11 @@ None identified for the Phase 0/1/2/3/4 scope.
 | VER-014 | Synthetic AX fixture app | verified-local | Native executable with 8 fixture control classes and --focus-secure | `PulseLensFixtureApp --inspect` + live probe | `Sources/PulseLensFixtureApp/` | 2026-10-03 | test fixture changes |
 | VER-015 | Phase 3 Semantic State Machine & Explicit Run Lifecycle | verified-local | 15-state semantic loop, PulseRun tracking with shared generation token and bound envelope/source object ID, enforced Result hold blocking RECEDE, re-entrancy rejection (activeRunAlreadyExists), truthful cancellation state trace with observer agreement, cancellation requested vs acknowledged, 8 terminal outcome lifecycles, Witness receipt binding, Result cross-validation, 9 stale/race protections (INV-007, INV-008), and live AppKit overlay lifecycle with zero focus/clipboard theft | `PulseCoreTests` (38) + `PulseVerification` (103/103) + `dexpulse doctor` + `make check` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
 | VER-016 | Phase 4 Veil Annular Interaction Engine & Real Input Integration | verified-local | 8-sector annular geometry with 100% path parity, 16pt radial overshoot, 6° seam hysteresis, minimal-translation edge/corner placement, negative-origin multi-monitor support, pure keyboard traversal model, temporary Carbon hotkey delivery adapter, real mouse event integration across 9 trajectories, hollow center click-through and traversal, experimental registry for all V1 classes, live app probes (TextEdit, Brave, Terminal) | `PulseInteractionTests` (21) + `PulseVerification` (176/176) + live probes + `make check` | `Sources/PulseInteraction/` | 2026-10-03 | Interaction engine changes |
-| VER-017 | Phase 5 Object Layout Freeze Trial & Candidate System | verified-local | 18 candidate layouts (version 1.0.0-candidate), freeze authority boundary with strict human owner approval token requirement, privacy-safe content-free trial ledger, autonomous mechanical simulation harness (355 trials, 0 misfires), and owner review artifact | `VeilTests` (84/84) + `PulseVerification` (330/330) + `make check` | `Sources/PulseInteraction/` | 2026-10-03 | Layout changes |
+| VER-017 | Phase 5 Object Layout Freeze Trial & Candidate System | verified-local | 10 candidate layouts (1.0.0-candidate), 8 experimental layouts (1.0.0-experimental), 0 frozen; freeze immutable at runtime (requires source change + ADR/migration); content-free trial ledger; non-binding mechanical diagnostics (350 synthetic trials); deterministic owner review generator with consistency gate | `VeilTests` (87/87) + `PulseVerification` (313/313) + `make check` | `Sources/PulseInteraction/` | 2026-10-03 | Layout changes |
 | INV-001 | DexDictate retains priority | requested | Partial Phase 0/1: no trigger collision, clipboard/focus preserved. Full coexistence matrix unverified | Concurrent runtime matrix (Phase 11) | `build/DEX_PULSE.app` (partial) | 2026-10-03 | capture/input/coexistence changes |
 | INV-002 | No destructive V1 executor | verified-local | Destructive future cap blocked | `PulsePolicy` + `PulseVerification` | `PulseKit` | 2026-10-03 | Pack/policy changes |
 | INV-003 | Lens precedence is deterministic & lazy | verified-local | Locked order: Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5; stops at winning tier; zero clipboard mutation; zero focus theft | `LensResolver` spy tests & live Fixture/TextEdit/Terminal/Brave/Finder probes | `PulseLens` | 2026-10-03 | Lens changes |
-| INV-004 | Stable object-class directional layouts | verified-local | Permanent directional slots across all 11 V1 ObjectClasses; unavailable capabilities preserve position (disabled slot); no AI reordering; lifecycle promoted to candidate (1.0.0-candidate) pending real owner review | `VeilLayoutRegistry` snapshot tests + `PulseVerification` | `Sources/PulseInteraction/` | 2026-10-03 | Layout changes |
+| INV-004 | Stable object-class directional layouts | verified-local | Permanent directional slots across all 18 V1 ObjectClasses (10 candidate, 8 experimental, 0 frozen); unavailable capabilities preserve position (disabled slot); no AI reordering; candidate layouts immutable at runtime pending real owner review via ADR/migration | `VeilLayoutRegistry` snapshot tests + `PulseVerification` | `Sources/PulseInteraction/` | 2026-10-03 | Layout changes |
 | INV-005 | Strand visuals match fixtures | requested | Reference fixtures intact. Metal Strand renderer not yet implemented (Phase 6) | Golden comparison against reference videos (Phase 6) | none (fixtures only) | 2026-10-03 | renderer/material changes |
 | INV-006 | Core runtime independence | verified-local | 0 external packages | `Package.swift` inspection | package graph | 2026-10-03 | dependency changes |
 | INV-007 | State machine causal convergence | verified-local | Cancellation from any transient state strictly reaches QUIET without stranded states | Automated test across 13 transient states in `PulseCoreTests` + `PulseVerification` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
@@ -238,6 +238,18 @@ None identified for the Phase 0/1/2/3/4 scope.
 - **Must remain unchanged:** Supplied original reference video bytes; locked user decisions; clean-room boundary.
 - **Mandatory checks:** `make check`, `make app`, `make install-user`, `scripts/validate_planning_source.sh`, `scripts/verify_fixtures.sh`.
 ## 13. Compact Revision Log
+
+### Revision 14 — 2026-10-03
+
+- **Artifact/source identity:** Phase 5 Evidence-Integrity and Owner-Review Alignment (`branch: phase-05-layout-freeze`)
+- **State deltas:**
+  - **Removal of False Owner Token / Runtime Immutability:** Removed `freezeLayout(for:ownerApprovalToken:)` security-theater mechanism. Layouts are strictly immutable at runtime; candidate status cannot be converted to frozen via runtime API or token. Freeze strictly requires an explicit source-controlled migration with an ADR approved by the human owner.
+  - **Restored Safe Initializer Default:** `VeilObjectLayout` initializer defaults strictly to `.experimental` (`1.0.0-experimental`). Candidate lifecycle must be explicitly assigned to vetted layouts.
+  - **Zero Silent Fallback for All 18 V1 Object Classes:** Eliminated silent fallback to Text for unreviewed classes. Explicitly registered all 18 classes: 10 candidate layouts (`1.0.0-candidate`), 8 experimental layouts (`1.0.0-experimental`), 0 frozen layouts.
+  - **Image / File Candidate Family Alignment:** Implemented explicit `Image/file` candidate family in `VeilLayoutRegistry` adhering to `docs/OBJECT_LAYOUTS_V1.md` (N metadata, NE enhance, E convert, SE send/target, S spool, SW reveal, W related, NW variant) with unbuilt capabilities locked in place without reflow.
+  - **Deterministic Owner-Review Generator:** Built `VeilOwnerReviewGenerator` producing `docs/layout-trials/PHASE-05-OWNER-REVIEW.md` directly from `VeilLayoutRegistry` state with zero drift, verified via automated consistency gate. Added Owner Decision Matrix with ASCII wheels and blank direction-change tables.
+  - **Terminology and Accounting Correction:** Replaced invented semantic claims with `HYPOTHESIS — REQUIRES OWNER REVIEW`. Relabeled mechanical trials to `NON-BINDING MECHANICAL DIAGNOSTIC`. Separated accounting: 350 synthetic mechanical trials vs 0 real owner invocations. Removed invented numeric freeze budgets, restoring controlling source freeze criteria (20 real invocations or deliberate review, misfire notes, edge usability, keyboard equivalent, owner approval).
+- **New evidence:** All 87 unit tests passed across 5 suites (`PulseInteractionTests` 27, `PulseCoreTests` 38, `PulseLensTests` 15, `PulseKitTests` 3, `PulseVerificationTests` 4); `PulseVerification` passed 313/313 checks; live runtime probes verified across TextEdit, Brave, Terminal; `dexpulse doctor` clean; `make check` passed 6/6 stages; `make app` built and signed release bundle.
 
 ### Revision 13 — 2026-10-03
 

@@ -9,7 +9,11 @@ public enum VeilInputRoute: String, Sendable, Codable, Equatable, CustomStringCo
     public var description: String { rawValue }
 }
 
-/// Bitfield flags tracking motor or navigation misfires during a trial.
+/// Bitfield flags tracking boundary challenges or simulated navigation discrepancies.
+///
+/// NON-BINDING MECHANICAL DIAGNOSTIC:
+/// These flags track synthetic simulation events (e.g. boundary seam crossings, radial overshoot).
+/// They are NOT real-world human motor misfires.
 public struct VeilMisfireFlags: OptionSet, Sendable, Codable, Equatable, Hashable {
     public let rawValue: UInt8
 
@@ -17,7 +21,7 @@ public struct VeilMisfireFlags: OptionSet, Sendable, Codable, Equatable, Hashabl
         self.rawValue = rawValue
     }
 
-    /// User/synthetic cursor armed a different sector than intended.
+    /// Synthetic cursor crossed into a neighboring sector during jitter/challenge test.
     public static let wrongSector        = VeilMisfireFlags(rawValue: 1 << 0)
 
     /// Sector was armed, disarmed into neutral center or neighboring sector, and re-armed.
@@ -34,7 +38,7 @@ public struct VeilMisfireFlags: OptionSet, Sendable, Codable, Equatable, Hashabl
     public var summary: String {
         if isClean { return "clean" }
         var parts: [String] = []
-        if contains(.wrongSector) { parts.append("wrong-sector") }
+        if contains(.wrongSector) { parts.append("simulated-wrong-sector") }
         if contains(.reArm) { parts.append("re-arm") }
         if contains(.excessiveTraversal) { parts.append("excessive-traversal") }
         if contains(.abort) { parts.append("abort") }
@@ -90,20 +94,24 @@ public struct VeilLayoutTrialRecord: Sendable, Codable, Equatable, Identifiable 
         self.misfires = misfires
     }
 
-    /// Whether this trial completed cleanly without any recorded misfire flags.
+    /// Whether this trial completed cleanly without any recorded challenge flags.
     public var isClean: Bool {
         misfires.isClean && (intendedDirection == nil || sectorChosen == intendedDirection)
     }
 }
 
-/// Aggregated trial metrics for an object class layout across multiple trial executions.
+/// Aggregated synthetic metrics for an object class layout across mechanical trials.
+///
+/// NON-BINDING MECHANICAL DIAGNOSTIC:
+/// Aggregates reflect synthetic geometry reachability and tracker math.
+/// They do NOT satisfy product freeze criteria (which require real owner invocations).
 public struct VeilLayoutTrialAggregate: Sendable, Codable, Equatable {
     public let objectClass: ObjectClass
     public let layoutVersion: String
-    public let totalTrials: Int
-    public let successfulSelections: Int
-    public let misfireCount: Int
-    public let misfireRate: Double
+    public let totalSyntheticTrials: Int
+    public let cleanSelections: Int
+    public let simulatedWrongSectorCount: Int
+    public let simulatedWrongSectorRate: Double
     public let avgDistancePt: Double
     public let avgSeamCrossings: Double
     public let avgRadialOvershootPt: Double
@@ -112,25 +120,60 @@ public struct VeilLayoutTrialAggregate: Sendable, Codable, Equatable {
     public let keyboardTrials: Int
     public let coveredDirections: [CompassDirection]
 
-    public var isCandidateReady: Bool {
-        totalTrials >= 6 && misfireRate <= 0.15 && coveredDirections.count >= 4
+    // Backward-compatibility properties
+    public var totalTrials: Int { totalSyntheticTrials }
+    public var successfulSelections: Int { cleanSelections }
+    public var misfireCount: Int { simulatedWrongSectorCount }
+    public var misfireRate: Double { simulatedWrongSectorRate }
+
+    /// Diagnostic baseline reachability check (synthetic diagnostics only).
+    public var hasMechanicalBaselineCoverage: Bool {
+        totalSyntheticTrials >= 6 && coveredDirections.count >= 4
     }
+
+    public var isCandidateReady: Bool { hasMechanicalBaselineCoverage }
 }
 
 /// In-memory, privacy-safe trial recorder ledger for Phase 5 Object Layout Freeze trials.
+///
+/// STRICT SEPARATION:
+/// Synthetic trials and real owner invocations are tracked through completely distinct counters.
+/// Synthetic trial count NEVER satisfies real owner invocation requirements.
 public final class VeilLayoutTrialLedger: @unchecked Sendable {
     public static let shared = VeilLayoutTrialLedger()
 
     private let lock = NSLock()
     private var records: [VeilLayoutTrialRecord] = []
+    private var _realOwnerInvocations: Int = 0
 
     public init() {}
 
-    /// Records a single layout interaction trial.
+    /// Records a single synthetic mechanical trial.
     public func recordTrial(_ record: VeilLayoutTrialRecord) {
         lock.lock()
         defer { lock.unlock() }
         records.append(record)
+    }
+
+    /// Records a real owner invocation.
+    public func recordRealOwnerInvocation() {
+        lock.lock()
+        defer { lock.unlock() }
+        _realOwnerInvocations += 1
+    }
+
+    /// Current count of real owner invocations recorded.
+    public var realOwnerInvocationCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _realOwnerInvocations
+    }
+
+    /// Current count of synthetic mechanical trials recorded.
+    public var syntheticTrialCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return records.count
     }
 
     /// Returns all trial records.
@@ -152,6 +195,7 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         records.removeAll()
+        _realOwnerInvocations = 0
     }
 
     /// Computes aggregated metrics for an object class layout.
@@ -165,10 +209,10 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
             return VeilLayoutTrialAggregate(
                 objectClass: objectClass,
                 layoutVersion: layout.version,
-                totalTrials: 0,
-                successfulSelections: 0,
-                misfireCount: 0,
-                misfireRate: 0.0,
+                totalSyntheticTrials: 0,
+                cleanSelections: 0,
+                simulatedWrongSectorCount: 0,
+                simulatedWrongSectorRate: 0.0,
                 avgDistancePt: 0.0,
                 avgSeamCrossings: 0.0,
                 avgRadialOvershootPt: 0.0,
@@ -195,10 +239,10 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
         return VeilLayoutTrialAggregate(
             objectClass: objectClass,
             layoutVersion: version,
-            totalTrials: total,
-            successfulSelections: successes,
-            misfireCount: misfires,
-            misfireRate: misfireRate,
+            totalSyntheticTrials: total,
+            cleanSelections: successes,
+            simulatedWrongSectorCount: misfires,
+            simulatedWrongSectorRate: misfireRate,
             avgDistancePt: (avgDist * 10).rounded() / 10,
             avgSeamCrossings: (avgSeams * 100).rounded() / 100,
             avgRadialOvershootPt: (avgOvershoot * 10).rounded() / 10,
@@ -218,18 +262,19 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
     public func summaryReport() -> String {
         let aggregates = aggregateMetricsForAll()
         var lines: [String] = []
-        lines.append("=== DEX//PULSE Phase 5 Layout Trial Ledger Report ===")
-        lines.append(String(format: "%-16@ %-18@ %-8@ %-8@ %-10@ %-12@ %-8@", "ObjectClass", "Version", "Trials", "Clean", "Misfire%", "AvgDist(pt)", "Seams"))
-        lines.append(String(repeating: "-", count: 85))
+        lines.append("=== DEX//PULSE Phase 5 Synthetic Mechanical Diagnostics Report ===")
+        lines.append("NOTE: Non-binding diagnostics. Real owner invocations recorded: \(_realOwnerInvocations)")
+        lines.append(String(format: "%-16@ %-18@ %-8@ %-8@ %-12@ %-12@ %-8@", "ObjectClass", "Version", "Trials", "Clean", "Challenge%", "AvgDist(pt)", "Seams"))
+        lines.append(String(repeating: "-", count: 90))
 
         for agg in aggregates {
-            let misfirePct = String(format: "%.1f%%", agg.misfireRate * 100.0)
+            let misfirePct = String(format: "%.1f%%", agg.simulatedWrongSectorRate * 100.0)
             lines.append(String(
-                format: "%-16@ %-18@ %-8d %-8d %-10@ %-12.1f %-8.2f",
+                format: "%-16@ %-18@ %-8d %-8d %-12@ %-12.1f %-8.2f",
                 agg.objectClass.rawValue,
                 agg.layoutVersion,
-                agg.totalTrials,
-                agg.successfulSelections,
+                agg.totalSyntheticTrials,
+                agg.cleanSelections,
                 misfirePct,
                 agg.avgDistancePt,
                 agg.avgSeamCrossings

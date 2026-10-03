@@ -1,240 +1,858 @@
 # DEX//PULSE Phase 5 — Candidate Object Layout Review
 
-**Status:** `READY FOR OWNER REVIEW`  
-**Current Lifecycle:** `.candidate`  
-**Layout Version:** `1.0.0-candidate`  
-**Target:** Apple Silicon macOS 14+ (MacBook Air / Big Mac)  
+**Status:** `READY FOR OWNER REVIEW`<br>
+**Candidate Classes (10):** `selectedText`, `errorLog`, `repository`, `path`, `uiElement`, `focusedElement`, `image`, `file`, `selectedFile`, `fileSet`<br>
+**Ambiguous / Experimental Classes (8):** `code`, `url`, `jsonText`, `window`, `application`, `clipboard`, `result`, `machineTarget`<br>
+**Frozen Classes:** `0` (Freeze strictly prohibited prior to real owner review)<br>
+**Target:** Apple Silicon macOS 14+ (MacBook Air / Big Mac)
 
 > [!IMPORTANT]
-> **OWNER APPROVAL NEEDED TO FREEZE**  
-> Under repository authority doctrine, automated test harnesses and autonomous agents are strictly **prohibited** from freezing layouts into `.frozen-v1`. Freezing is an exclusive human owner authority boundary requiring real-world habit verification and conscious ergonomic sign-off. All layouts in this document remain in candidate status pending owner-use validation.
+> **OWNER APPROVAL NEEDED TO FREEZE**<br>
+> Under repository authority doctrine, automated test harnesses and autonomous agents are strictly **prohibited** from freezing layouts into `.frozen-v1`. There is no runtime token or API that mutates `.candidate` into `.frozen-v1`. Freeze occurs strictly via an explicit source code change with an ADR/migration record approved by the human owner. All layouts in this document remain in candidate or experimental status pending real owner-use validation.
 
 ---
 
 ## 1. Executive Summary
 
-Phase 5 transitions the DEX//PULSE directional layout registry from experimental prototypes (`1.0.0-experimental`) to formal candidate layouts (`1.0.0-candidate`). Every primary object family has undergone autonomous mechanical simulation across pointer sweeps, seam jitter, radial overshoot, edge/corner clamping, nested disclosure, and keyboard traversal.
+Phase 5 establishes the directional layout candidate foundation for DEX//PULSE. Each object class recognizes a stable compass wheel mapped to high-frequency Reflexes without AI reordering or dynamic reflow.
 
-### Summary of Mechanical Trial Findings
-- **Total Mechanical Trials Executed:** 355 simulated trials across all 18 `ObjectClass` values.
-- **Reachability:** 100% of occupied compass slots are reachable via direct pointer trajectories and keyboard stepping.
-- **Seam Stability:** The 6.0° angular hysteresis token prevents boundary flutter across sector seams.
-- **Radial Overshoot Forgiveness:** The 16.0 pt radial overshoot tolerance envelope prevents accidental dismissals during rapid gestures.
-- **Reflow Invariance:** Disabled and locked slots (e.g. Repair Packet, Checkpoint) preserve their exact compass slots; neighboring choices never slide over.
-- **Privacy Compliance:** All 355 trial records in `VeilLayoutTrialLedger` are strictly content-free (zero text, URLs, paths, UI names, window titles, AX trees, or clipboard payloads).
+### Candidate Promotion Criteria
+A layout is promoted to `.candidate` (`1.0.0-candidate`) only when:
+1. Its directional mapping is explicitly present in governing planning source (`docs/OBJECT_LAYOUTS_V1.md`), OR
+2. Explicit family inheritance is justified by governing source;
+3. Mechanical reachability is proven via synthetic simulations;
+4. No unresolved source contradictions exist.
+
+Classes not meeting these criteria remain `.experimental` (`1.0.0-experimental`) and are marked `OWNER DECISION REQUIRED`.
+
+### Non-Binding Mechanical Diagnostics Summary
+- **Synthetic Mechanical Trials:** 350 simulated trials across all 18 `ObjectClass` values.
+- **Real Owner Invocations Recorded:** 0 (real-world trial ledger active; real habit evidence pending).
+- **Diagnostic Status:** `NON-BINDING MECHANICAL DIAGNOSTIC` — simulated trials prove geometry and tracker math, but do NOT constitute human muscle-memory evidence or owner approval.
+- **Controlling Freeze Evidence:** Per `docs/OBJECT_LAYOUTS_V1.md`, product freeze requires:
+  - At least 20 real invocations OR deliberate owner review;
+  - Misfire/overshoot notes from real motor use;
+  - Repeated desired actions not represented;
+  - Direction conflict notes;
+  - Edge-screen usability verification;
+  - Keyboard equivalent verification;
+  - Explicit owner approval or no-objection.
 
 ---
 
-## 2. Visual Compass Layout Diagrams & Slot Rationales
+## 2. Candidate Families (10 Classes with Source Authority)
 
-### 2.1 Text Family (`selectedText`, `jsonText`, `url`)
+### 2.1 Text Family (`selectedText`)
 
-```
+**Lifecycle:** `.candidate` (`1.0.0-candidate`)
+
+Authority: `docs/OBJECT_LAYOUTS_V1.md: Text`. Primary text inquiry, refinement, and routing.
+
+```text
                [N] Explain
                  \     /
-   [NW] Route     \   /      [NE] Research
-         \         \ /         /
-[W] Inspect ------- O ------- [E] Transform
-         /         / \         \
-   [SW] Find      /   \      [SE] Send
-                 /     \
-               [S] Keep
-```
+   [NW] Route \   / [NE] Verify
+         \     \ /     /
+[W] Structure ----- O ----- [E] Transform
+         /     / \     \
+   [SW] Find Source /   \ [SE] Send
+             /     \
+           [S] Keep / Spool```
 
-| Direction | Reflex ID | Label | State | Rationale |
-|---|---|---|---|---|
-| **N** | `text.explain` | Explain | Enabled | Primary inquiry direction: upward gesture intuitively maps to explanation/comprehension. |
-| **NE** | `text.research` | Research | Enabled | Secondary inquiry: upward-diagonal maps to broader web/context search. |
-| **E** | `text.transform` | Transform | Enabled | Forward/rightward gesture maps to transforming, formatting, or refining text. |
-| **SE** | `text.send` | Send | Enabled | Outward-downward gesture for dispatching text to tools or external targets. |
-| **S** | `text.keep` | Keep / Spool | Enabled | Downward gesture intuitively maps to anchoring, saving, or spooling content into memory. |
-| **SW** | `text.find_source` | Find Source | Enabled | Downward-leftward gesture maps to tracing origin or source context. |
-| **W** | `text.inspect` | Inspect | Enabled | Leftward/backward gesture maps to structural syntax inspection. |
-| **NW** | `text.route` | Route | Enabled | High-level orchestration: routes text to best matching executor. |
-
----
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `text.explain` | Explain | enabled | — | Candidate Reflex |
+| **NE** | `text.verify` | Verify | enabled | — | Candidate Reflex |
+| **E** | `text.transform` | Transform | enabled | — | Candidate Reflex |
+| **SE** | `text.send` | Send | enabled | Ollama Summarizer, Copy Structured | Candidate Reflex |
+| **S** | `text.spool` | Keep / Spool | enabled | — | Candidate Reflex |
+| **SW** | `text.source` | Find Source | enabled | — | Candidate Reflex |
+| **W** | `text.structure` | Structure | enabled | — | Candidate Reflex |
+| **NW** | `text.route` | Route | enabled | — | Candidate Reflex |
 
 ### 2.2 Error / Log Family (`errorLog`)
 
-```
+**Lifecycle:** `.candidate` (`1.0.0-candidate`)
+
+Authority: `docs/OBJECT_LAYOUTS_V1.md: Error / log`. Rapid error triage, stack trace diagnosis, and regression capture.
+
+```text
                [N] Explain
                  \     /
-  [NW] Fixture    \   /      [NE] Research
-         \         \ /         /
-  [W] Repair ------ O ------- [E] Diagnose
-         /         / \         \
-   [SW] Source    /   \      [SE] Send (Agent) ──► [Nested Target Ring]
-                 /     \
-               [S] Keep
-```
+   [NW] Fixture \   / [NE] Research
+         \     \ /     /
+[W] Repair ----- O ----- [E] Diagnose
+         /     / \     \
+   [SW] Find Source /   \ [SE] Send
+             /     \
+           [S] Keep / Witness```
 
-| Direction | Reflex ID | Label | State | Rationale |
-|---|---|---|---|---|
-| **N** | `error.explain` | Explain | Enabled | Urgent reflex: immediate plain-English explanation of error stack trace. |
-| **NE** | `error.research` | Research | Enabled | Searches documentation, issues, and known fixes for error code. |
-| **E** | `error.diagnose` | Diagnose | Enabled | Deep root-cause analysis isolating failing lines and causal factors. |
-| **SE** | `error.send_agent` | Send Agent | Enabled (Nested) | Dispatches error context to subagent (Ollama Local, Big Mac Worker, Spool). |
-| **S** | `error.witness` | Keep / Witness | Enabled | Captures error state and execution trace into Witness ledger. |
-| **SW** | `error.find_source`| Find Source | Enabled | Jumps directly to throwing file and line in workspace. |
-| **W** | `error.repair_packet`| Repair | Locked (Phase 8) | Generates automated patch. Position locked to prevent motor reflow. |
-| **NW** | `error.regression_fixture` | Fixture | Enabled | Captures error input as reproducible regression fixture. |
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `error.explain` | Explain | enabled | — | Candidate Reflex |
+| **NE** | `error.research` | Research | enabled | — | Candidate Reflex |
+| **E** | `error.diagnose` | Diagnose | enabled | — | Candidate Reflex |
+| **SE** | `error.send_agent` | Send | enabled | Local Ollama, Big Mac Worker, Queue to Spool | Candidate Reflex |
+| **S** | `error.witness` | Keep / Witness | enabled | — | Candidate Reflex |
+| **SW** | `error.find_source` | Find Source | enabled | — | Candidate Reflex |
+| **W** | `error.repair_packet` | Repair | locked: Repair execution locked until Phase 8 | — | Candidate Reflex |
+| **NW** | `error.regression_fixture` | Fixture | enabled | — | Candidate Reflex |
 
----
+### 2.3 Repository / Project / Path Family (`repository`, `path`)
 
-### 2.3 Repository / Code / Path Family (`code`, `path`, `file`, `selectedFile`)
+**Lifecycle:** `.candidate` (`1.0.0-candidate`)
 
-```
+Authority: `docs/OBJECT_LAYOUTS_V1.md: Repository / project / path`. Developer project state, git status, and target execution.
+
+```text
                [N] Status
                  \     /
- [NW] Checkpoint  \   /      [NE] Changes
-         \         \ /         /
-  [W] Search ------ O ------- [E] Validate
-         /         / \         \
-   [SW] Open      /   \      [SE] Target ────────► [Nested Machine Ring]
-                 /     \
-               [S] Keep
-```
+   [NW] Checkpoint \   / [NE] Changes
+         \     \ /     /
+[W] Search ----- O ----- [E] Validate
+         /     / \     \
+   [SW] Open / Reveal /   \ [SE] Target
+             /     \
+           [S] Keep```
 
-| Direction | Reflex ID | Label | State | Rationale |
-|---|---|---|---|---|
-| **N** | `repo.status` | Status | Enabled | Most frequent developer reflex: git status and working tree overview. |
-| **NE** | `repo.changes` | Changes | Enabled | Inspects uncommitted diffs and staged modifications. |
-| **E** | `repo.validate` | Validate | Enabled | Runs read-only checks, linters, and verification scripts. |
-| **SE** | `repo.target` | Target | Enabled (Nested) | Targets machine execution context (MacBook Air M1, Big Mac Canonical). |
-| **S** | `repo.keep` | Keep Context | Enabled | Saves repository snapshot and active context into Witness spool. |
-| **SW** | `repo.open` | Open / Reveal | Enabled | Reveals file/folder in Finder, Terminal, or default editor. |
-| **W** | `repo.search` | Search | Enabled | Full-text search across codebase symbols and files. |
-| **NW** | `repo.checkpoint` | Checkpoint | Locked (Phase 4) | Bounded write checkpoint. Retains position without motor collapse. |
-
----
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `repo.status` | Status | enabled | — | Candidate Reflex |
+| **NE** | `repo.changes` | Changes | enabled | — | Candidate Reflex |
+| **E** | `repo.validate` | Validate | enabled | — | Candidate Reflex |
+| **SE** | `repo.target` | Target | enabled | MacBook Air M1, Big Mac Canonical | Candidate Reflex |
+| **S** | `repo.keep` | Keep | enabled | — | Candidate Reflex |
+| **SW** | `repo.open` | Open / Reveal | enabled | — | Candidate Reflex |
+| **W** | `repo.search` | Search | enabled | — | Candidate Reflex |
+| **NW** | `repo.checkpoint` | Checkpoint | locked: Automated write checkpoints locked in early V1 | — | Candidate Reflex |
 
 ### 2.4 UI Element Family (`uiElement`, `focusedElement`)
 
-```
+**Lifecycle:** `.candidate` (`1.0.0-candidate`)
+
+Authority: `docs/OBJECT_LAYOUTS_V1.md: UI element`. Accessibility element inspection and hierarchy traversal.
+
+```text
                [N] Inspect
                  \     /
-   [NW] Bind      \   /      [NE] Explain
-         \         \ /         /
-  [W] Related ----- O ------- [E] Actions
-         /         / \         \
-   [SW] Parent    /   \      [SE] Spool Ref
-                 /     \
-               [S] Keep Ref
-```
+   [NW] Bind Reflex \   / [NE] Explain
+         \     \ /     /
+[W] Related ----- O ----- [E] AX Actions
+         /     / \     \
+   [SW] Parent /   \ [SE] Add to Spool
+             /     \
+           [S] Keep```
 
-| Direction | Reflex ID | Label | State | Rationale |
-|---|---|---|---|---|
-| **N** | `ui.inspect` | Inspect | Enabled | Primary Accessibility reflex: inspects element role, title, and bounds. |
-| **NE** | `ui.explain` | Explain | Enabled | Explains control purpose and role in context of active window. |
-| **E** | `ui.actions` | Actions | Enabled | Displays available Accessibility actions without auto-executing them. |
-| **SE** | `ui.spool` | Spool Ref | Enabled | Adds lightweight element reference to Spool for cross-app automation. |
-| **S** | `ui.keep` | Keep Ref | Enabled | Anchors element reference in Witness ledger. |
-| **SW** | `ui.parent` | Parent/Context | Enabled | Traverses up the Accessibility hierarchy to enclosing container/window. |
-| **W** | `ui.search_related`| Search Related | Enabled | Locates sibling or related controls within the same interface. |
-| **NW** | `ui.bind` | Bind Reflex | Locked (Post-V1) | Reserved placeholder for custom habit binding. |
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `ui.inspect` | Inspect | enabled | — | Candidate Reflex |
+| **NE** | `ui.explain` | Explain | enabled | — | Candidate Reflex |
+| **E** | `ui.actions` | AX Actions | enabled | — | Candidate Reflex |
+| **SE** | `ui.spool` | Add to Spool | enabled | — | Candidate Reflex |
+| **S** | `ui.keep` | Keep | enabled | — | Candidate Reflex |
+| **SW** | `ui.parent` | Parent | enabled | — | Candidate Reflex |
+| **W** | `ui.related` | Related | enabled | — | Candidate Reflex |
+| **NW** | `ui.bind` | Bind Reflex | unavailable: Custom binding unavailable in V1 | — | Candidate Reflex |
 
----
+### 2.5 Image / File Family (`image`, `file`, `selectedFile`, `fileSet`)
 
-### 2.5 Window & Application Family (`window`, `application`)
+**Lifecycle:** `.candidate` (`1.0.0-candidate`)
 
-```
-               [N] Inspect
+Authority: `docs/OBJECT_LAYOUTS_V1.md: Image/file`. Asset and file metadata inspection, reveal, and conversion.
+
+```text
+               [N] Inspect Metadata
                  \     /
-   [NW] Quit      \   /      [NE] Windows
-         \         \ /         /
-  [W] Search ------ O ------- [E] Focus
-         /         / \         \
-   [SW] Reveal    /   \      [SE] Target
-                 /     \
-               [S] Keep Context
-```
+   [NW] Variant \   / [NE] Enhance
+         \     \ /     /
+[W] Related ----- O ----- [E] Convert
+         /     / \     \
+   [SW] Reveal / Open /   \ [SE] Send / Target
+             /     \
+           [S] Spool / Keep```
 
-| Direction | Reflex ID | Label | State | Rationale |
-|---|---|---|---|---|
-| **N** | `app.inspect` | Inspect | Enabled | Inspects application identity, PID, and architecture. |
-| **NE** | `app.windows` | Windows | Enabled | Lists open windows and tabs for active application. |
-| **E** | `app.focus` | Focus | Enabled | Brings application or target window frontmost. |
-| **SE** | `app.target` | Target | Enabled | Dispatches application context to target machine. |
-| **S** | `app.keep` | Keep Context | Enabled | Captures active window state into session memory. |
-| **SW** | `app.reveal` | Reveal | Enabled | Reveals application binary in Finder. |
-| **W** | `app.search` | Search | Enabled | Searches application menus and commands. |
-| **NW** | `app.quit` | Quit / Dismiss | Locked (V1) | Destructive/terminating action blocked in early V1. |
-
----
-
-## 3. Keyboard Delivery Adapter & Chord Map
-
-The Veil uses non-activating Carbon temporary hotkeys registered strictly while presented and removed on recede:
-
-| Function | Primary Chord | Arrow Key Equivalent | Semantics |
-|---|---|---|---|
-| **Previous Slot** | `⌃⌥[` (Control-Option-[) | Left Arrow (W) | Cycles counter-clockwise across occupied slots |
-| **Next Slot** | `⌃⌥]` (Control-Option-]) | Right Arrow (E) | Cycles clockwise across occupied slots |
-| **Dive Nested** | `⌃⌥O` (Control-Option-O) | Right Arrow on SE | Expands secondary outer ring for targets/choices |
-| **Back Out** | `⌃⌥I` (Control-Option-I) | Left Arrow in Nested | Collapses outer ring back to parent sector |
-| **Activate** | `⌃⌥↩` (Control-Option-Return) | Space / Return | Executes currently armed Reflex action |
-| **Cancel** | `⌃⌥⎋` (Control-Option-Escape) | Escape | Dismisses nested ring first, dismisses Veil second |
-
-**Coexistence Invariant:** The temporary chord map has been proven conflict-free with the global invocation hotkey (`Shift-Command-Space`) and preserves 100% of foreground application focus across TextEdit, Brave, and Terminal.
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `file.metadata` | Inspect Metadata | enabled | — | Candidate Reflex |
+| **NE** | `file.enhance` | Enhance | unavailable: Visual enhance pack unavailable in V1 baseline | — | Candidate Reflex |
+| **E** | `file.convert` | Convert | unavailable: Asset conversion pack unavailable in V1 baseline | — | Candidate Reflex |
+| **SE** | `file.send` | Send / Target | enabled | MacBook Air M1, Big Mac Canonical | Candidate Reflex |
+| **S** | `file.spool` | Spool / Keep | enabled | — | Candidate Reflex |
+| **SW** | `file.reveal` | Reveal / Open | enabled | — | Candidate Reflex |
+| **W** | `file.related` | Related | unavailable: Asset discovery pack unavailable in V1 baseline | — | Candidate Reflex |
+| **NW** | `file.variant` | Variant | unavailable: Variant generation pack unavailable in V1 baseline | — | Candidate Reflex |
 
 ---
 
-## 4. Mechanical Trial Metrics Summary
+## 3. Ambiguous / Experimental Classes (8 Classes — Owner Decision Required)
 
-Data aggregated across 355 autonomous trials recorded in `VeilLayoutTrialLedger`:
+These classes are not fully assigned in `docs/OBJECT_LAYOUTS_V1.md`. They are registered with provisional slots under `.experimental` lifecycle (`1.0.0-experimental`) and require deliberate owner decision before candidate promotion.
 
-| Object Family | Version | Simulated Trials | Clean Rate | Misfire Rate | Avg Travel Distance | Avg Seam Crossings | Candidate Status |
-|---|---|---|---|---|---|---|---|
-| **selectedText** | `1.0.0-candidate` | 20 | 95.0% | 5.0% | 76.8 pt | 0.05 | `READY` |
-| **errorLog** | `1.0.0-candidate` | 20 | 90.0% | 10.0% | 81.2 pt | 0.10 | `READY` |
-| **code / repo** | `1.0.0-candidate` | 20 | 90.0% | 10.0% | 81.2 pt | 0.10 | `READY` |
-| **file / selectedFile** | `1.0.0-candidate` | 20 | 90.0% | 10.0% | 81.2 pt | 0.10 | `READY` |
-| **uiElement** | `1.0.0-candidate` | 19 | 89.5% | 10.5% | 75.4 pt | 0.11 | `READY` |
-| **window / app** | `1.0.0-candidate` | 19 | 89.5% | 10.5% | 75.4 pt | 0.11 | `READY` |
-| **clipboard** | `1.0.0-candidate` | 20 | 95.0% | 5.0% | 76.8 pt | 0.05 | `READY` |
-| **result** | `1.0.0-candidate` | 19 | 94.7% | 5.3% | 75.4 pt | 0.05 | `READY` |
+### 3.1 CodeObject — `OWNER DECISION REQUIRED`
 
-*Note: Misfires in mechanical simulation represent boundary exploration tests (e.g. deliberate seam jitter or outside boundary probes) designed to verify hysteresis damping.*
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Code family)<br>
+**Unresolved Question:** Unresolved family: evaluate whether Code belongs to Repository, Text, or dedicated Code layout.
+
+```text
+               [N] Explain
+                 \     /
+   [NW] Format \   / [NE] Refactor
+         \     \ /     /
+[W] Document ----- O ----- [E] Copy Block
+         /     / \     \
+   [SW] Lint /   \ [SE] Tests
+             /     \
+           [S] Run Scratchpad```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `code.explain` | Explain | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `code.refactor` | Refactor | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `code.copy` | Copy Block | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `code.test` | Tests | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `code.run` | Run Scratchpad | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `code.lint` | Lint | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `code.doc` | Document | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `code.format` | Format | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.2 URLObject — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define URL family)<br>
+**Unresolved Question:** Unresolved family: evaluate whether URL inherits Text with link actions or standalone Web/Browser family.
+
+```text
+               [N] Open Browser
+                 \     /
+   [NW] Domain Search \   / [NE] Copy Link
+         \     \ /     /
+[W] Share ----- O ----- [E] Fetch Meta
+         /     / \     \
+   [SW] Headers /   \ [SE] Archive
+             /     \
+           [S] Scan Security```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `url.open` | Open Browser | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `url.copy` | Copy Link | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `url.fetch` | Fetch Meta | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `url.archive` | Archive | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `url.scan` | Scan Security | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `url.headers` | Headers | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `url.share` | Share | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `url.search` | Domain Search | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.3 JSONTextObject — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define JSONText family)<br>
+**Unresolved Question:** Unresolved family: evaluate whether JSONText inherits Text with formatting or standalone Structured Data family.
+
+```text
+               [N] Validate
+                 \     /
+   [NW] Codable Swift \   / [NE] Prettify
+         \     \ /     /
+[W] Inspect ----- O ----- [E] Minify
+         /     / \     \
+   [SW] To YAML /   \ [SE] Gen Schema
+             /     \
+           [S] Extract Path```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `json.validate` | Validate | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `json.format` | Prettify | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `json.compact` | Minify | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `json.schema` | Gen Schema | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `json.path` | Extract Path | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `json.yaml` | To YAML | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `json.inspect` | Inspect | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `json.types` | Codable Swift | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.4 WindowObject — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Window family)<br>
+**Unresolved Question:** Unresolved family: evaluate whether Window inherits UI element or dedicated OS Window Management family.
+
+```text
+               [N] Inspect Window
+                 \     /
+   [NW] Tile \   / [NE] Focus
+         \     \ /     /
+[W] Child Elements ----- O ----- [E] Bounds
+         /     / \     \
+   [SW] Parent App /   \ [SE] Add to Spool
+             /     \
+           [S] Keep```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `window.inspect` | Inspect Window | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `window.focus` | Focus | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `window.bounds` | Bounds | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `window.spool` | Add to Spool | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `window.keep` | Keep | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `window.parent` | Parent App | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `window.elements` | Child Elements | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `window.tile` | Tile | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.5 ApplicationObject — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Application family)<br>
+**Unresolved Question:** Unresolved family: evaluate whether Application inherits UI element or dedicated OS Process/App family.
+
+```text
+               [N] Inspect App
+                 \     /
+   [NW] Hide App \   / [NE] Bundle Info
+         \     \ /     /
+[W] Related Apps ----- O ----- [E] Windows
+         /     / \     \
+   [SW] Process State /   \ [SE] Add to Spool
+             /     \
+           [S] Keep```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `app.inspect` | Inspect App | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `app.info` | Bundle Info | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `app.windows` | Windows | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `app.spool` | Add to Spool | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `app.keep` | Keep | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `app.running` | Process State | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `app.related` | Related Apps | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `app.hide` | Hide App | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.6 ClipboardObject — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Clipboard family)<br>
+**Unresolved Question:** Unresolved family: evaluate whether Clipboard inherits Text or dynamic multi-type container.
+
+```text
+               [N] Inspect Types
+                 \     /
+   [NW] Paste Rich \   / [NE] Paste Plain
+         \     \ /     /
+[W] Clear History ----- O ----- [E] Transform
+         /     / \     \
+   [SW] Trace Source /   \ [SE] Send
+             /     \
+           [S] Spool / Keep```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `clip.inspect` | Inspect Types | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `clip.paste_plain` | Paste Plain | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `clip.transform` | Transform | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `clip.send` | Send | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `clip.spool` | Spool / Keep | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `clip.source` | Trace Source | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `clip.clear` | Clear History | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `clip.rich` | Paste Rich | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.7 ResultObject — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** docs/INTERACTION_MODEL.md: Result Object (hold and inspection lifecycle)<br>
+**Unresolved Question:** Unresolved family: Result hold layout mentioned in docs/INTERACTION_MODEL.md requires deliberate owner validation before candidate promotion.
+
+```text
+               [N] Re-Pulse
+                 \     /
+   [NW] Dismiss \   / [NE] Evidence
+         \     \ /     /
+[W] Diff ----- O ----- [E] Witness Proof
+         /     / \     \
+   [SW] Reveal /   \ [SE] Send / Target
+             /     \
+           [S] Keep / Pin```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `result.repulse` | Re-Pulse | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `result.evidence` | Evidence | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `result.witness` | Witness Proof | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `result.target` | Send / Target | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `result.spool` | Keep / Pin | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `result.open` | Reveal | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `result.diff` | Diff | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `result.dismiss` | Dismiss | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+
+### 3.8 MachineTarget — `OWNER DECISION REQUIRED`
+
+**Lifecycle:** `.experimental` (`1.0.0-experimental`)<br>
+**Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define MachineTarget family)<br>
+**Unresolved Question:** Unresolved family: Machine execution target selection layout is not defined in docs/OBJECT_LAYOUTS_V1.md and requires deliberate owner validation.
+
+```text
+               [N] Ping Target
+                 \     /
+   [NW] Disconnect \   / [NE] System Stats
+         \     \ /     /
+[W] Capabilities ----- O ----- [E] Run Remote
+         /     / \     \
+   [SW] Open Shell /   \ [SE] Target Context
+             /     \
+           [S] Keep Target```
+
+| Direction | Reflex ID | Label | State | Nested Choices | Authority / Notes |
+|:---|:---|:---|:---|:---|:---|
+| **N** | `target.ping` | Ping Target | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NE** | `target.stats` | System Stats | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **E** | `target.run` | Run Remote | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SE** | `target.context` | Target Context | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **S** | `target.keep` | Keep Target | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **SW** | `target.shell` | Open Shell | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **W** | `target.caps` | Capabilities | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
+| **NW** | `target.disconnect` | Disconnect | enabled | — | HYPOTHESIS — REQUIRES OWNER REVIEW |
 
 ---
 
-## 5. Candidate Layout Registry State
+## 4. Non-Binding Mechanical Diagnostics & Telemetry Ledger
 
-| ObjectClass | Current Lifecycle | Version | Occupied Slots | Disabled / Locked Slots | Status |
-|---|---|---|---|---|---|
-| `selectedText` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
-| `selectedFile` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`repo.checkpoint`) | Candidate |
-| `file` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`repo.checkpoint`) | Candidate |
-| `fileSet` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`repo.checkpoint`) | Candidate |
-| `path` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`repo.checkpoint`) | Candidate |
-| `url` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
-| `repository` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`repo.checkpoint`) | Candidate |
-| `code` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`repo.checkpoint`) | Candidate |
-| `errorLog` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`error.repair_packet`) | Candidate |
-| `jsonText` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
-| `image` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
-| `uiElement` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`ui.bind`) | Candidate |
-| `focusedElement` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`ui.bind`) | Candidate |
-| `window` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`app.quit`) | Candidate |
-| `application` | `.candidate` | `1.0.0-candidate` | 8 | 1 (`app.quit`) | Candidate |
-| `clipboard` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
-| `result` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
-| `machineTarget` | `.candidate` | `1.0.0-candidate` | 8 | 0 | Candidate |
+> [!NOTE]
+> All synthetic metrics below are **non-binding mechanical diagnostics** proving reachability and tracker math. They do NOT satisfy the product freeze requirement for real owner invocations.
+
+| Object Class | Lifecycle | Synthetic Trials | Boundary Challenges | Simulated Recovery Rate | Real Owner Invocations |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| `SelectedTextObject` | `.candidate` | 20 | 1 | 95.0% | 0 |
+| `SelectedFileObject` | `.candidate` | 20 | 5 | 75.0% | 0 |
+| `FileObject` | `.candidate` | 20 | 5 | 75.0% | 0 |
+| `FileSetObject` | `.candidate` | 20 | 5 | 75.0% | 0 |
+| `PathObject` | `.candidate` | 20 | 2 | 90.0% | 0 |
+| `URLObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `RepositoryObject` | `.candidate` | 20 | 2 | 90.0% | 0 |
+| `CodeObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `ErrorLogObject` | `.candidate` | 20 | 2 | 90.0% | 0 |
+| `JSONTextObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `ImageObject` | `.candidate` | 20 | 5 | 75.0% | 0 |
+| `UIElementObject` | `.candidate` | 19 | 2 | 89.5% | 0 |
+| `FocusedElementObject` | `.candidate` | 19 | 2 | 89.5% | 0 |
+| `WindowObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `ApplicationObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `ClipboardObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `ResultObject` | `.experimental` | 19 | 1 | 94.7% | 0 |
+| `MachineTarget` | `.experimental` | 19 | 1 | 94.7% | 0 |
 
 ---
 
-## 6. Real Owner-Use Evaluation Protocol
+## 5. Owner Decision Matrix
 
-To transition any layout from `.candidate` to `.frozen-v1`, the human owner conducts natural daily usage:
+Andrew: Use this decision matrix to review, accept, or modify directional layouts for V1.
 
-1. **Trial Period:** Use DEX//PULSE for routine development across TextEdit, Brave, Terminal, and Finder.
-2. **Frequency Verification:** Confirm that primary Reflexes (N: Explain/Status/Inspect) are indeed the most frequently desired actions.
-3. **Motor Ergonomics:** Assess whether diagonal reflexes (SE: Send/Target) feel natural or require excessive wrist deviation.
-4. **Misfire Observations:** Note any recurring misfires or accidental sector arming during real typing and mouse gestures.
-5. **Freeze Command:** When satisfied, the owner provides an explicit authorization token:
-   ```swift
-   VeilLayoutRegistry.shared.freezeLayout(for: .errorLog, ownerApprovalToken: "OWNER-FREEZE-...")
-   ```
-   or issues a formal ADR promoting candidate layouts to frozen V1.
+### Text Family (`selectedText`)
 
-**Current State:** Layouts remain in `.candidate` status pending real owner-use review. No layout is frozen.
+**Current Lifecycle:** `.candidate` (1.0.0-candidate)<br>
+**Source Authority:** docs/OBJECT_LAYOUTS_V1.md: Text
+
+Current mapping:
+
+```text
+           N: Explain
+     NW: Route   NE: Verify
+   W: Structure         E: Transform
+     SW: Find Source   SE: Send
+           S: Keep / Spool```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Error / Log Family (`errorLog`)
+
+**Current Lifecycle:** `.candidate` (1.0.0-candidate)<br>
+**Source Authority:** docs/OBJECT_LAYOUTS_V1.md: Error / log
+
+Current mapping:
+
+```text
+           N: Explain
+     NW: Fixture   NE: Research
+   W: Repair         E: Diagnose
+     SW: Find Source   SE: Send
+           S: Keep / Witness```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Repository / Project / Path Family (`repository`, `path`)
+
+**Current Lifecycle:** `.candidate` (1.0.0-candidate)<br>
+**Source Authority:** docs/OBJECT_LAYOUTS_V1.md: Repository / project / path
+
+Current mapping:
+
+```text
+           N: Status
+     NW: Checkpoint   NE: Changes
+   W: Search         E: Validate
+     SW: Open / Reveal   SE: Target
+           S: Keep```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### UI Element Family (`uiElement`, `focusedElement`)
+
+**Current Lifecycle:** `.candidate` (1.0.0-candidate)<br>
+**Source Authority:** docs/OBJECT_LAYOUTS_V1.md: UI element
+
+Current mapping:
+
+```text
+           N: Inspect
+     NW: Bind Reflex   NE: Explain
+   W: Related         E: AX Actions
+     SW: Parent   SE: Add to Spool
+           S: Keep```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Image / File Family (`image`, `file`, `selectedFile`, `fileSet`)
+
+**Current Lifecycle:** `.candidate` (1.0.0-candidate)<br>
+**Source Authority:** docs/OBJECT_LAYOUTS_V1.md: Image/file
+
+Current mapping:
+
+```text
+           N: Inspect Metadata
+     NW: Variant   NE: Enhance
+   W: Related         E: Convert
+     SW: Reveal / Open   SE: Send / Target
+           S: Spool / Keep```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Code Layout (`code`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Code family)
+
+Current mapping:
+
+```text
+           N: Explain
+     NW: Format   NE: Refactor
+   W: Document         E: Copy Block
+     SW: Lint   SE: Tests
+           S: Run Scratchpad```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### URL Layout (`url`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define URL family)
+
+Current mapping:
+
+```text
+           N: Open Browser
+     NW: Domain Search   NE: Copy Link
+   W: Share         E: Fetch Meta
+     SW: Headers   SE: Archive
+           S: Scan Security```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### JSONText Layout (`jsonText`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define JSONText family)
+
+Current mapping:
+
+```text
+           N: Validate
+     NW: Codable Swift   NE: Prettify
+   W: Inspect         E: Minify
+     SW: To YAML   SE: Gen Schema
+           S: Extract Path```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Window Layout (`window`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Window family)
+
+Current mapping:
+
+```text
+           N: Inspect Window
+     NW: Tile   NE: Focus
+   W: Child Elements         E: Bounds
+     SW: Parent App   SE: Add to Spool
+           S: Keep```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Application Layout (`application`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Application family)
+
+Current mapping:
+
+```text
+           N: Inspect App
+     NW: Hide App   NE: Bundle Info
+   W: Related Apps         E: Windows
+     SW: Process State   SE: Add to Spool
+           S: Keep```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Clipboard Layout (`clipboard`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define Clipboard family)
+
+Current mapping:
+
+```text
+           N: Inspect Types
+     NW: Paste Rich   NE: Paste Plain
+   W: Clear History         E: Transform
+     SW: Trace Source   SE: Send
+           S: Spool / Keep```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### Result Layout (`result`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** docs/INTERACTION_MODEL.md: Result Object (hold and inspection lifecycle)
+
+Current mapping:
+
+```text
+           N: Re-Pulse
+     NW: Dismiss   NE: Evidence
+   W: Diff         E: Witness Proof
+     SW: Reveal   SE: Send / Target
+           S: Keep / Pin```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |
+
+### MachineTarget Layout (`machineTarget`)
+
+**Current Lifecycle:** `.experimental` (1.0.0-experimental)<br>
+**Source Authority:** None (docs/OBJECT_LAYOUTS_V1.md does not define MachineTarget family)
+
+Current mapping:
+
+```text
+           N: Ping Target
+     NW: Disconnect   NE: System Stats
+   W: Capabilities         E: Run Remote
+     SW: Open Shell   SE: Target Context
+           S: Keep Target```
+
+- [ ] KEEP AS SHOWN
+- [ ] CHANGE (specify replacements in table below)
+- [ ] NEEDS LIVE USE BEFORE DECISION
+- [ ] UNRESOLVED FAMILY (assign to existing family or declare new family)
+
+If CHANGE, specify replacement slots:
+
+| Slot | New Reflex ID | New Label | Rationale |
+|:---|:---|:---|:---|
+| N | | | |
+| NE | | | |
+| E | | | |
+| SE | | | |
+| S | | | |
+| SW | | | |
+| W | | | |
+| NW | | | |

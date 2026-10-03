@@ -719,12 +719,11 @@ final class PulseVerifier {
             assert(parity.parityMatches && parity.pathContains && parity.mathContains, "Dense geometry/path parity verified for \(dir)")
         }
 
-        // 4. Verify all V1 ObjectClasses resolve with candidate lifecycle (Phase 5)
+        // 4. Verify all 18 V1 ObjectClasses resolve with explicit layout and non-empty slots
         let registry = VeilLayoutRegistry.shared
         for objClass in ObjectClass.allCases {
             let layout = registry.layout(for: objClass)
-            assert(layout.lifecycle == .candidate, "Layout for \(objClass) is in candidate lifecycle")
-            assert(layout.version == "1.0.0-candidate", "Layout for \(objClass) is version 1.0.0-candidate")
+            assert(!layout.isFrozen, "Layout for \(objClass) is NOT frozen")
             assert(!layout.occupiedDirections.isEmpty, "Layout for \(objClass) has non-empty occupied slots")
         }
 
@@ -792,47 +791,77 @@ final class PulseVerifier {
         let ledger = VeilLayoutTrialLedger.shared
         ledger.clear()
 
-        // 1. Verify all 11 classes are candidates and NOT frozen
-        for objClass in ObjectClass.allCases {
+        // 1. Safe default lifecycle check
+        let safeDefault = VeilObjectLayout(objectClass: .code, slots: [:])
+        assert(safeDefault.lifecycle == .experimental, "VeilObjectLayout initializer defaults to .experimental")
+        assert(safeDefault.version == "1.0.0-experimental", "VeilObjectLayout initializer defaults to 1.0.0-experimental")
+
+        // 2. Candidate classes (10 classes with explicit source authority)
+        let expectedCandidates: [ObjectClass] = [
+            .selectedText, .errorLog, .repository, .path, .uiElement,
+            .focusedElement, .image, .file, .selectedFile, .fileSet
+        ]
+        for objClass in expectedCandidates {
             let layout = registry.layout(for: objClass)
             assert(layout.isCandidate, "Layout for \(objClass) is in candidate lifecycle")
-            assert(!layout.isFrozen, "Layout for \(objClass) is NOT frozen without owner review")
+            assert(!layout.isFrozen, "Layout for \(objClass) is NOT frozen")
             assert(layout.version == "1.0.0-candidate", "Layout version for \(objClass) is 1.0.0-candidate")
         }
 
-        // 2. Run autonomous mechanical trials across all 11 primary object classes
+        // 3. Ambiguous / experimental classes (8 classes requiring owner decision)
+        let expectedExperimental: [ObjectClass] = [
+            .code, .url, .jsonText, .window, .application, .clipboard, .result, .machineTarget
+        ]
+        for objClass in expectedExperimental {
+            let layout = registry.layout(for: objClass)
+            assert(layout.isExperimental, "Layout for \(objClass) is in experimental lifecycle")
+            assert(!layout.isFrozen, "Layout for \(objClass) is NOT frozen")
+            assert(layout.version == "1.0.0-experimental", "Layout version for \(objClass) is 1.0.0-experimental")
+            assert(!layout.unresolvedQuestions.isEmpty, "Layout for \(objClass) declares unresolved questions")
+        }
+
+        assert(registry.candidateLayouts.count == 10, "Exact 10 candidate layouts registered")
+        assert(registry.experimentalLayouts.count == 8, "Exact 8 experimental layouts registered")
+
+        // 4. Run autonomous mechanical trials across all 18 object classes
         let aggregates = VeilLayoutTrialSimulator.runAllTrials(ledger: ledger)
         assert(aggregates.count == ObjectClass.allCases.count, "Trial simulation ran for all \(ObjectClass.allCases.count) classes")
 
         for agg in aggregates {
             assert(agg.totalTrials >= 6, "Class \(agg.objectClass) completed at least 6 mechanical trials (\(agg.totalTrials))")
-            assert(agg.misfireRate <= 0.15, "Class \(agg.objectClass) misfire rate <= 15% (actual: \(agg.misfireRate))")
-            assert(agg.isCandidateReady, "Class \(agg.objectClass) is candidate ready")
+            assert(agg.hasMechanicalBaselineCoverage, "Class \(agg.objectClass) has mechanical baseline coverage")
             assert(agg.coveredDirections.count >= 4, "Class \(agg.objectClass) covered at least 4 compass directions")
         }
 
-        // 3. Strict privacy rule check: ledger records must never store content payloads
+        // 5. Strict accounting separation: synthetic trials vs real owner invocations
+        assert(ledger.syntheticTrialCount == 350, "Ledger records exactly 350 synthetic mechanical trials (actual: \(ledger.syntheticTrialCount))")
+        assert(ledger.realOwnerInvocationCount == 0, "Ledger records exactly 0 real owner invocations prior to human trial")
+
+        // 6. Strict privacy rule check: ledger records must never store content payloads
         let allRecords = ledger.allRecords
         assert(!allRecords.isEmpty, "Trial ledger has recorded trials (\(allRecords.count) trials)")
-        assert(allRecords.allSatisfy { $0.layoutVersion == "1.0.0-candidate" }, "All \(allRecords.count) records have candidate version")
         assert(allRecords.allSatisfy { $0.distanceTraveledPt >= 0.0 }, "All records have non-negative distance")
         assert(allRecords.allSatisfy { $0.seamCrossings >= 0 }, "All records have valid seam crossings")
 
-        // 4. Freeze authority boundary check: automated harness strictly prohibited from freezing
-        let harnessAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "AUTOMATED_HARNESS")
-        assert(harnessAttempt == .failure(.automatedHarnessProhibited), "Automated harness is prohibited from freezing layouts")
+        // 7. Image/file family alignment with docs/OBJECT_LAYOUTS_V1.md
+        let fileLayout = registry.layout(for: .file)
+        assert(fileLayout.family == .imageFile, "File layout belongs to Image/file family")
+        assert(fileLayout.reflex(at: .n)?.id == "file.metadata", "File N is Inspect Metadata")
+        assert(fileLayout.reflex(at: .ne)?.id == "file.enhance", "File NE is Enhance")
+        assert(fileLayout.reflex(at: .e)?.id == "file.convert", "File E is Convert")
+        assert(fileLayout.reflex(at: .se)?.id == "file.send", "File SE is Send / Target")
+        assert(fileLayout.reflex(at: .s)?.id == "file.spool", "File S is Spool / Keep")
+        assert(fileLayout.reflex(at: .sw)?.id == "file.reveal", "File SW is Reveal / Open")
+        assert(fileLayout.reflex(at: .w)?.id == "file.related", "File W is Related / Project Use")
+        assert(fileLayout.reflex(at: .nw)?.id == "file.variant", "File NW is Variant")
 
-        let ciAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "CI")
-        assert(ciAttempt == .failure(.automatedHarnessProhibited), "CI is prohibited from freezing layouts")
-
-        // 5. Invalid owner token rejected
-        let invalidAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "invalid")
-        assert(invalidAttempt == .failure(.invalidApprovalToken), "Invalid owner token is rejected")
-
-        // 6. Verify layout remains in candidate state
-        let candidateCheck = registry.layout(for: .selectedText)
-        assert(candidateCheck.lifecycle == .candidate, "Layout remains in candidate state pending real owner review")
-        assert(!candidateCheck.isFrozen, "Layout is not frozen")
+        // 8. Consistency Gate: owner review artifact must match VeilOwnerReviewGenerator
+        let generatedDoc = VeilOwnerReviewGenerator.generateDocument(registry: registry)
+        assert(!generatedDoc.isEmpty, "Generated review document is non-empty")
+        let reviewPath = "docs/layout-trials/PHASE-05-OWNER-REVIEW.md"
+        if let onDisk = try? String(contentsOfFile: reviewPath, encoding: .utf8) {
+            assert(onDisk == generatedDoc, "Owner review artifact on disk matches VeilOwnerReviewGenerator")
+        }
     }
 
     public func runLiveAppProbes() -> Bool {
@@ -1037,7 +1066,18 @@ struct PulseVerificationMain {
     @MainActor
     static func main() {
         let verifier = PulseVerifier()
-        if CommandLine.arguments.contains("--runtime-probes") {
+        if CommandLine.arguments.contains("--generate-review") {
+            let doc = VeilOwnerReviewGenerator.generateDocument()
+            let path = "docs/layout-trials/PHASE-05-OWNER-REVIEW.md"
+            do {
+                try doc.write(toFile: path, atomically: true, encoding: .utf8)
+                print("✓ Successfully generated \(path) (\(doc.count) characters)")
+                exit(0)
+            } catch {
+                print("✗ Failed to write \(path): \(error)")
+                exit(1)
+            }
+        } else if CommandLine.arguments.contains("--runtime-probes") {
             let success = verifier.runLiveAppProbes()
             exit(success ? 0 : 1)
         } else {

@@ -177,7 +177,7 @@ func runDoctor(asJSON: Bool) {
 
     // 7. Evidence Limitations
     let evidenceLimitations = [
-        "Phase 5 Object Layout Freeze Trial: Candidate layouts (1.0.0-candidate), mechanical trial simulations, and privacy-safe trial ledger verified; awaiting real owner-use review before freeze.",
+        "Phase 5 Object Layout Freeze Trial: 10 candidate layouts (1.0.0-candidate), 8 experimental layouts (1.0.0-experimental), mechanical trial diagnostics, and privacy-safe trial ledger verified; awaiting real owner-use review before freeze.",
         "GUI focus non-theft is architecturally enforced (nonactivatingPanel) and verified live across TextEdit, Brave Browser, and Terminal.",
         "DexDictate coexistence: Partial Phase 0/1 verified (no hotkey collision, focus/clipboard preserved); full coexistence matrix scheduled for Phase 11.",
         "Big Mac direct execution route remains pending until connected to the same physical network."

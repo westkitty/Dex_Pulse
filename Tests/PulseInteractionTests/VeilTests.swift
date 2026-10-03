@@ -276,16 +276,35 @@ struct VeilTests {
 
     // MARK: - 3. Layout Registry & Invariant Tests
 
-    @Test("Every V1 ObjectClass resolves deterministically with candidate lifecycle in Phase 5")
+    @Test("Every V1 ObjectClass resolves deterministically with candidate or experimental lifecycle in Phase 5")
     func registryCoverageAndStability() {
         let registry = VeilLayoutRegistry.shared
+
+        let expectedCandidates: Set<ObjectClass> = [
+            .selectedText, .errorLog, .repository, .path, .uiElement,
+            .focusedElement, .image, .file, .selectedFile, .fileSet
+        ]
+        let expectedExperimental: Set<ObjectClass> = [
+            .code, .url, .jsonText, .window, .application, .clipboard, .result, .machineTarget
+        ]
+
+        #expect(registry.candidateLayouts.count == 10)
+        #expect(registry.experimentalLayouts.count == 8)
 
         for objClass in ObjectClass.allCases {
             let layout = registry.layout(for: objClass)
             #expect(layout.objectClass == objClass)
-            #expect(layout.lifecycle == .candidate, "Lifecycle must be .candidate in Phase 5")
-            #expect(layout.version == "1.0.0-candidate", "Version must be 1.0.0-candidate")
+            #expect(!layout.isFrozen, "No layout may be frozen in Phase 5")
             #expect(!layout.occupiedDirections.isEmpty, "Layout for \(objClass) must have occupied slots")
+
+            if expectedCandidates.contains(objClass) {
+                #expect(layout.lifecycle == .candidate, "Candidate class \(objClass) must be .candidate")
+                #expect(layout.version == "1.0.0-candidate", "Candidate class \(objClass) must be 1.0.0-candidate")
+            } else if expectedExperimental.contains(objClass) {
+                #expect(layout.lifecycle == .experimental, "Ambiguous class \(objClass) must be .experimental")
+                #expect(layout.version == "1.0.0-experimental", "Ambiguous class \(objClass) must be 1.0.0-experimental")
+                #expect(!layout.unresolvedQuestions.isEmpty, "Ambiguous class \(objClass) must declare unresolved questions")
+            }
 
             // Deterministic repeated lookup
             let layout2 = registry.layout(for: objClass)
@@ -769,31 +788,61 @@ struct VeilTests {
 
     // MARK: - 6. Phase 5 Object Layout Freeze & Trial Ledger Tests
 
-    @Test("Layout freeze strictly requires valid owner approval token and prohibits automated harnesses")
-    func layoutFreezeAuthorityGuards() {
+    @Test("VeilObjectLayout initializer defaults strictly to .experimental and 1.0.0-experimental")
+    func initializerDefaultsStrictlyToExperimental() {
+        let layout = VeilObjectLayout(objectClass: .code, slots: [:])
+        #expect(layout.lifecycle == .experimental)
+        #expect(layout.version == "1.0.0-experimental")
+        #expect(layout.isExperimental)
+        #expect(!layout.isCandidate)
+        #expect(!layout.isFrozen)
+    }
+
+    @Test("Candidate layouts are immutable at runtime and cannot be frozen via runtime API")
+    func candidateLayoutsAreImmutableAndCannotBeFrozenAtRuntime() {
         let registry = VeilLayoutRegistry.shared
 
-        // 1. Current default is candidate
+        // Verify candidate lifecycle
         let textLayout = registry.layout(for: .selectedText)
         #expect(textLayout.lifecycle == .candidate)
         #expect(textLayout.version == "1.0.0-candidate")
+        #expect(textLayout.isCandidate)
+        #expect(!textLayout.isFrozen)
 
-        // 2. Automated harness cannot freeze
-        let harnessAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "AUTOMATED_HARNESS")
-        #expect(harnessAttempt == .failure(.automatedHarnessProhibited))
+        // All registered layouts must not be frozen
+        for objClass in ObjectClass.allCases {
+            let lay = registry.layout(for: objClass)
+            #expect(!lay.isFrozen, "Class \(objClass) must not be frozen in Phase 5")
+        }
+    }
 
-        let ciAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "CI")
-        #expect(ciAttempt == .failure(.automatedHarnessProhibited))
+    @Test("Image/file family strictly implements the 8 Reflex slots from docs/OBJECT_LAYOUTS_V1.md")
+    func imageFileFamilyAlignsWithPlanningSource() {
+        let registry = VeilLayoutRegistry.shared
 
-        // 3. Short or invalid token rejected
-        let invalidAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "short-token")
-        #expect(invalidAttempt == .failure(.invalidApprovalToken))
+        let imageClasses: [ObjectClass] = [.image, .file, .selectedFile, .fileSet]
+        for objClass in imageClasses {
+            let layout = registry.layout(for: objClass)
+            #expect(layout.family == .imageFile, "Class \(objClass) must belong to imageFile family")
+            #expect(layout.lifecycle == .candidate, "Class \(objClass) must be candidate")
+            #expect(layout.version == "1.0.0-candidate")
 
-        // 4. Layout remains candidate
-        let stillCandidate = registry.layout(for: .selectedText)
-        #expect(stillCandidate.lifecycle == .candidate)
-        #expect(stillCandidate.isCandidate)
-        #expect(!stillCandidate.isFrozen)
+            // Exact slots from docs/OBJECT_LAYOUTS_V1.md lines 75-87:
+            #expect(layout.reflex(at: .n)?.id == "file.metadata")
+            #expect(layout.reflex(at: .ne)?.id == "file.enhance")
+            #expect(layout.reflex(at: .e)?.id == "file.convert")
+            #expect(layout.reflex(at: .se)?.id == "file.send")
+            #expect(layout.reflex(at: .s)?.id == "file.spool")
+            #expect(layout.reflex(at: .sw)?.id == "file.reveal")
+            #expect(layout.reflex(at: .w)?.id == "file.related")
+            #expect(layout.reflex(at: .nw)?.id == "file.variant")
+
+            // Capabilities without V1 Pack must be unavailable in place
+            #expect(layout.reflex(at: .ne)?.state == .unavailable(reason: "Visual enhance pack unavailable in V1 baseline"))
+            #expect(layout.reflex(at: .e)?.state == .unavailable(reason: "Asset conversion pack unavailable in V1 baseline"))
+            #expect(layout.reflex(at: .w)?.state == .unavailable(reason: "Asset discovery pack unavailable in V1 baseline"))
+            #expect(layout.reflex(at: .nw)?.state == .unavailable(reason: "Variant generation pack unavailable in V1 baseline"))
+        }
     }
 
     @Test("VeilLayoutTrialLedger accurately records telemetry and computes aggregates with zero content payload")
@@ -801,6 +850,8 @@ struct VeilTests {
         let ledger = VeilLayoutTrialLedger()
         ledger.clear()
         #expect(ledger.allRecords.isEmpty)
+        #expect(ledger.syntheticTrialCount == 0)
+        #expect(ledger.realOwnerInvocationCount == 0)
 
         // Record a clean trial
         let record1 = VeilLayoutTrialRecord(
@@ -817,8 +868,10 @@ struct VeilTests {
         )
         ledger.recordTrial(record1)
         #expect(record1.isClean)
+        #expect(ledger.syntheticTrialCount == 1)
+        #expect(ledger.realOwnerInvocationCount == 0)
 
-        // Record a trial with seam flutter misfire
+        // Record a trial with simulated wrong-sector challenge
         let record2 = VeilLayoutTrialRecord(
             objectClass: .selectedText,
             layoutVersion: "1.0.0-candidate",
@@ -833,13 +886,15 @@ struct VeilTests {
         )
         ledger.recordTrial(record2)
         #expect(!record2.isClean)
+        #expect(ledger.syntheticTrialCount == 2)
+        #expect(ledger.realOwnerInvocationCount == 0)
 
         // Aggregate
         let agg = ledger.aggregateMetrics(for: .selectedText)
-        #expect(agg.totalTrials == 2)
-        #expect(agg.successfulSelections == 1)
-        #expect(agg.misfireCount == 1)
-        #expect(agg.misfireRate == 0.5)
+        #expect(agg.totalSyntheticTrials == 2)
+        #expect(agg.cleanSelections == 1)
+        #expect(agg.simulatedWrongSectorCount == 1)
+        #expect(agg.simulatedWrongSectorRate == 0.5)
         #expect(agg.avgDistancePt == 78.5)
         #expect(agg.avgSeamCrossings == 0.5)
 
@@ -858,22 +913,34 @@ struct VeilTests {
         #expect(aggregates.count == ObjectClass.allCases.count)
 
         for agg in aggregates {
-            #expect(agg.totalTrials >= 6, "Each class must have at least 6 mechanical trials (\(agg.objectClass))")
-            #expect(agg.layoutVersion == "1.0.0-candidate")
-            #expect(agg.misfireRate <= 0.15, "Misfire rate must be <= 15% (\(agg.objectClass) was \(agg.misfireRate))")
-            #expect(agg.isCandidateReady, "Layout for \(agg.objectClass) must be candidate-ready")
+            #expect(agg.totalSyntheticTrials >= 6, "Each class must have at least 6 mechanical trials (\(agg.objectClass))")
+            #expect(agg.hasMechanicalBaselineCoverage, "Layout for \(agg.objectClass) must have mechanical baseline coverage")
             #expect(!agg.coveredDirections.isEmpty)
         }
 
-        // Verify total records in ledger
+        // Verify total records in ledger (350 synthetic mechanical trials)
         let allRecords = ledger.allRecords
-        #expect(!allRecords.isEmpty)
+        #expect(allRecords.count == 350)
+        #expect(ledger.syntheticTrialCount == 350)
+        #expect(ledger.realOwnerInvocationCount == 0, "Real owner invocations must remain 0 prior to human trials")
 
         // Strict Privacy Verification: ensure records contain no text payloads
         for rec in allRecords {
             #expect(!rec.layoutVersion.isEmpty)
             #expect(rec.distanceTraveledPt >= 0.0)
             #expect(rec.seamCrossings >= 0)
+        }
+    }
+
+    @Test("Owner review generator strictly matches docs/layout-trials/PHASE-05-OWNER-REVIEW.md on disk")
+    func ownerReviewGeneratorMatchesDiskArtifact() {
+        let registry = VeilLayoutRegistry.shared
+        let generatedDoc = VeilOwnerReviewGenerator.generateDocument(registry: registry)
+        #expect(!generatedDoc.isEmpty)
+
+        let reviewPath = "docs/layout-trials/PHASE-05-OWNER-REVIEW.md"
+        if let onDisk = try? String(contentsOfFile: reviewPath, encoding: .utf8) {
+            #expect(onDisk == generatedDoc, "Disk review artifact must match VeilOwnerReviewGenerator output")
         }
     }
 }
