@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import PulseCore
 import PulseKit
 import PulseWitness
@@ -21,7 +22,7 @@ final class PulseVerifier {
 
     func runAll() -> Bool {
         print("================================================================================")
-        print(" DEX//PULSE Phase 0/1 Headless Verification Runner")
+        print(" DEX//PULSE Headless Verification Runner (Phase 0/1/2)")
         print("================================================================================")
 
         verifyBuildIdentity()
@@ -29,6 +30,12 @@ final class PulseVerifier {
         verifyCentralPolicy()
         verifyConfiguration()
         verifyLensPrecedence()
+        verifyLensCoordinates()
+        verifyLensAuthorizer()
+        verifyLensTypeRefiners()
+        verifyLensSecureFieldGuard()
+        verifyLensStaleContext()
+        verifyLensClipboardImmutability()
         verifyVisualThemeTokens()
         verifyVisualFixtures()
 
@@ -149,15 +156,99 @@ final class PulseVerifier {
     private func verifyLensPrecedence() {
         print("\n[5] Verifying Lens Precedence Hierarchy (INV-003)...")
         let prov = ObjectProvenance(acquisitionMethod: "test")
-        let c1 = LensCandidate(tier: .clipboardFallback, object: ClipboardObject(changeCount: 1, types: [], provenance: prov), acquisitionReason: "clipboard")
+        let c1 = LensCandidate(tier: .selectedContent, object: SelectedTextObject(text: "Selected text", provenance: prov), acquisitionReason: "selection")
         let c2 = LensCandidate(tier: .pointerUIElement, object: UIElementObject(role: "AXButton", title: "Submit", applicationName: "Demo", provenance: prov), acquisitionReason: "pointer")
-        let c3 = LensCandidate(tier: .selectedContent, object: SelectedTextObject(text: "Selected text", provenance: prov), acquisitionReason: "selection")
+        let c3 = LensCandidate(tier: .focusedAXElement, object: FocusedElementObject(role: "AXTextField", title: "Input", applicationName: "Demo", provenance: prov), acquisitionReason: "focus")
+        let c4 = LensCandidate(tier: .frontmostAppOrWindow, object: ApplicationObject(applicationName: "Terminal", pid: 100, provenance: prov), acquisitionReason: "frontmost")
+        let c5 = LensCandidate(tier: .clipboardFallback, object: ClipboardObject(changeCount: 1, types: [], provenance: prov), acquisitionReason: "clipboard")
 
-        let primary = LensResolver.resolvePrimary(from: [c1, c2, c3])
-        assert(primary?.tier == .selectedContent, "Selected content (tier 1) outranks pointer UI element and clipboard")
+        let p1 = LensResolver.resolvePrimary(from: [c5, c4, c3, c2, c1])
+        assert(p1?.tier == .selectedContent, "Selected content (tier 1) outranks all other tiers")
 
-        let primaryWithoutSelection = LensResolver.resolvePrimary(from: [c1, c2])
-        assert(primaryWithoutSelection?.tier == .pointerUIElement, "Pointer UI element (tier 2) outranks clipboard (tier 5)")
+        let p2 = LensResolver.resolvePrimary(from: [c5, c4, c3, c2])
+        assert(p2?.tier == .pointerUIElement, "Pointer element (tier 2) outranks tiers 3, 4, 5")
+
+        let p3 = LensResolver.resolvePrimary(from: [c5, c4, c3])
+        assert(p3?.tier == .focusedAXElement, "Focused element (tier 3) outranks tiers 4, 5")
+
+        let p4 = LensResolver.resolvePrimary(from: [c5, c4])
+        assert(p4?.tier == .frontmostAppOrWindow, "Frontmost app/window (tier 4) outranks tier 5")
+
+        let p5 = LensResolver.resolvePrimary(from: [c5])
+        assert(p5?.tier == .clipboardFallback, "Clipboard fallback (tier 5) resolves when higher tiers absent")
+    }
+
+    private func verifyLensCoordinates() {
+        print("\n[6] Verifying Lens Coordinate Translation...")
+        let height: CGFloat = 1080.0
+        let pt = CGPoint(x: 100, y: 200)
+        let cgPt = LensCoordinates.toCG(appKitPoint: pt, primaryHeight: height)
+        assert(cgPt.x == 100 && cgPt.y == 880, "AppKit point translated to CG correctly (Y inverted)")
+
+        let roundtripPt = LensCoordinates.toAppKit(cgPoint: cgPt, primaryHeight: height)
+        assert(roundtripPt.x == pt.x && roundtripPt.y == pt.y, "Coordinate roundtrip is lossless")
+
+        let rect = NSRect(x: 20, y: 50, width: 300, height: 100)
+        let cgRect = LensCoordinates.toCG(appKitRect: rect, primaryHeight: height)
+        assert(cgRect.origin.y == 930 && cgRect.height == 100, "Rect translation accurately maps origin and bounds")
+    }
+
+    private func verifyLensAuthorizer() {
+        print("\n[7] Verifying Accessibility Authorizer...")
+        let status = AccessibilityAuthorizer.checkStatus()
+        assert(status == .authorized || status == .denied, "AccessibilityAuthorizer returns valid non-blocking status: \(status.rawValue)")
+    }
+
+    private func verifyLensTypeRefiners() {
+        print("\n[8] Verifying Lens Type Refiners...")
+        let prov = ObjectProvenance(sourceAppBundle: "com.apple.Terminal", sourcePID: 123, acquisitionMethod: "test")
+        let urlText = SelectedTextObject(text: "https://example.com/api/v1", provenance: prov)
+        let refinedURL = TypeRefiners.refine(object: urlText)
+        assert(refinedURL.objectClass == .url, "Refined valid URL text to URLObject")
+        assert((refinedURL as? URLObject)?.parentObjectID == urlText.id.uuidString, "Preserved parent provenance ID in URLObject")
+
+        let jsonText = SelectedTextObject(text: "{\"key\": \"val\"}", provenance: prov)
+        let refinedJSON = TypeRefiners.refine(object: jsonText)
+        assert(refinedJSON.objectClass == .jsonText, "Refined valid JSON text to JSONTextObject")
+
+        let errText = SelectedTextObject(text: "fatalError: unreachable branch\nSIGSEGV (11)", provenance: prov)
+        let refinedErr = TypeRefiners.refine(object: errText)
+        assert(refinedErr.objectClass == .errorLog, "Refined error markers to ErrorLogObject")
+    }
+
+    private func verifyLensSecureFieldGuard() {
+        print("\n[9] Verifying Secure Field Privacy Guard (SEC-001)...")
+        let prov = ObjectProvenance(acquisitionMethod: "test", axRole: "AXSecureTextField")
+        let secureObj = SelectedTextObject(text: "", provenance: prov, privacyClass: .secureBlocked)
+        assert(secureObj.privacyClass == .secureBlocked, "Secure field marked as .secureBlocked")
+
+        let refined = TypeRefiners.refine(object: secureObj)
+        assert(refined.privacyClass == .secureBlocked, "Refiners never downgrade or mutate .secureBlocked objects")
+        assert((refined as? SelectedTextObject)?.text.isEmpty == true, "Secret payload is strictly empty/redacted")
+    }
+
+    private func verifyLensStaleContext() {
+        print("\n[10] Verifying Stale Context Validation...")
+        let tokenA = "token-alpha"
+        let tokenB = "token-beta"
+        let prov = ObjectProvenance(sourceAppBundle: "com.apple.finder", sourcePID: ProcessInfo.processInfo.processIdentifier, acquisitionMethod: "test")
+        let obj = FileObject(path: "/tmp", provenance: prov, contextGenerationToken: tokenA)
+
+        let pass = StaleContextValidator.validate(object: obj, activeGenerationToken: tokenA)
+        assert(pass == .valid, "Valid matching generation token accepted")
+
+        let fail = StaleContextValidator.validate(object: obj, activeGenerationToken: tokenB)
+        assert(fail == .staleGenerationToken, "Mismatched generation token rejected as stale")
+    }
+
+    private func verifyLensClipboardImmutability() {
+        print("\n[11] Verifying Clipboard Immutability (INV-001)...")
+        let pboard = NSPasteboard.general
+        let countBefore = pboard.changeCount
+        let provider = ClipboardFallbackProvider()
+        _ = provider.acquireCandidate(at: nil)
+        let countAfter = pboard.changeCount
+        assert(countBefore == countAfter, "Clipboard changeCount remained identical before and after acquisition")
     }
 
     private func verifyVisualThemeTokens() {

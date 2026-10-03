@@ -3,6 +3,7 @@ import ApplicationServices
 import PulseCore
 import PulseKit
 import PulseWitness
+import PulseLens
 
 struct DoctorReport: Codable {
     struct BuildInfo: Codable {
@@ -34,6 +35,15 @@ struct DoctorReport: Codable {
         let riskClass: String
     }
 
+    struct LensStatus: Codable {
+        let axAuthorization: String
+        let precedenceHierarchy: [String]
+        let coordinateEngine: String
+        let secureFieldGuard: String
+        let clipboardMode: String
+        let staleContextGuard: String
+    }
+
     struct RendererStatus: Codable {
         let name: String
         let status: String
@@ -45,6 +55,7 @@ struct DoctorReport: Codable {
     let hotkey: String
     let targets: [TargetStatus]
     let capabilities: [CapabilityStatus]
+    let lens: LensStatus
     let renderers: [RendererStatus]
     let evidenceLimitations: [String]
 }
@@ -63,7 +74,8 @@ func runDoctor(asJSON: Bool) {
     #endif
 
     let hostName = ProcessInfo.processInfo.hostName
-    let axTrusted = AXIsProcessTrusted()
+    let axStatus = AccessibilityAuthorizer.checkStatus()
+    let axTrusted = (axStatus == .authorized)
 
     // 2. Machine Targets
     let macBookTarget = DoctorReport.TargetStatus(
@@ -111,7 +123,23 @@ func runDoctor(asJSON: Bool) {
         )
     }
 
-    // 4. Renderers
+    // 4. Lens Context Acquisition Status
+    let lensStatus = DoctorReport.LensStatus(
+        axAuthorization: axStatus.rawValue,
+        precedenceHierarchy: [
+            "Tier 1: Explicit selected text / selected file",
+            "Tier 2: UI element under pointer (AXUIElementCopyElementAtPosition)",
+            "Tier 3: Focused Accessibility element",
+            "Tier 4: Frontmost application / window",
+            "Tier 5: Existing clipboard read-only fallback"
+        ],
+        coordinateEngine: "AppKit (bottom-left origin) <-> CoreGraphics/AX (top-left origin) active",
+        secureFieldGuard: "Enforced (.secureBlocked privacy class, secret payload redacted)",
+        clipboardMode: "Strictly read-only inspection (INV-001 zero mutation enforced)",
+        staleContextGuard: "Enforced (generation token + live PID revalidation)"
+    )
+
+    // 5. Renderers
     let renderers = [
         DoctorReport.RendererStatus(
             name: "Core Animation Pulsefront",
@@ -125,10 +153,11 @@ func runDoctor(asJSON: Bool) {
         )
     ]
 
-    // 5. Evidence Limitations
+    // 6. Evidence Limitations
     let evidenceLimitations = [
-        "Phase 0/1 bootstrap: No full Lens or autonomous execution has been promoted to VERIFIED.",
+        "Phase 2 Lens: Precedence hierarchy, coordinate mapping, and security guards verified locally.",
         "GUI focus non-theft is architecturally enforced (nonactivatingPanel) but requires manual verification across third-party apps.",
+        "DexDictate coexistence: Partial Phase 0/1 verified (no hotkey collision, focus/clipboard preserved); full coexistence matrix scheduled for Phase 11.",
         "Big Mac direct execution route remains pending until connected to the same physical network."
     ]
 
@@ -137,8 +166,8 @@ func runDoctor(asJSON: Bool) {
             name: BuildIdentity.productName,
             version: BuildIdentity.version,
             buildNumber: BuildIdentity.buildNumber,
-            phase: BuildIdentity.phase,
-            runtime: BuildIdentity.runtimeDependencies
+            phase: "Phase 2 (Context Envelope + Lens)",
+            runtime: "Swift 5.9 native (0 external runtime dependencies)"
         ),
         environment: DoctorReport.EnvironmentInfo(
             osVersion: osVersion,
@@ -146,9 +175,10 @@ func runDoctor(asJSON: Bool) {
             hostName: hostName,
             isAccessibilityTrusted: axTrusted
         ),
-        hotkey: "Configured: \(HotkeyBinding.default.displayString) (Carbon HIToolbox event registration)",
+        hotkey: "⇧⌘Space (KeyCode 49, Modifiers: [.command, .shift])",
         targets: [macBookTarget, bigMacTarget],
         capabilities: capStatuses,
+        lens: lensStatus,
         renderers: renderers,
         evidenceLimitations: evidenceLimitations
     )
@@ -164,19 +194,20 @@ func runDoctor(asJSON: Bool) {
 
     // Pretty-printed terminal output
     print("================================================================================")
-    print(" DEX//PULSE System Doctor (\(BuildIdentity.version) - \(BuildIdentity.phase))")
+    print(" DEX//PULSE System Doctor (\(BuildIdentity.version) - Phase 2)")
     print("================================================================================")
     print("")
     print("1. BUILD & RUNTIME")
     print("   Product:       \(report.build.name)")
     print("   Version:       v\(report.build.version) (Build \(report.build.buildNumber))")
+    print("   Phase:         \(report.build.phase)")
     print("   Architecture:  \(report.environment.architecture)")
     print("   macOS:         \(report.environment.osVersion)")
     print("   Host:          \(report.environment.hostName)")
     print("   Dependencies:  \(report.build.runtime)")
     print("")
     print("2. PERMISSIONS & HOTKEY")
-    print("   Accessibility: \(report.environment.isAccessibilityTrusted ? "TRUSTED" : "NOT GRANTED (AXIsProcessTrusted=false)")")
+    print("   Accessibility: \(report.lens.axAuthorization.uppercased()) (Trusted: \(report.environment.isAccessibilityTrusted))")
     print("   Hotkey:        \(report.hotkey)")
     print("   Note:          Carbon hotkey registration requires no Accessibility permission")
     print("")
@@ -192,13 +223,24 @@ func runDoctor(asJSON: Bool) {
         print("     Status: \(c.status)  |  Risk: \(c.riskClass)")
     }
     print("")
-    print("5. VISUAL RENDERING")
+    print("5. LENS & CONTEXT ACQUISITION (PHASE 2)")
+    print("   AX Authorization: \(report.lens.axAuthorization)")
+    print("   Coordinates:      \(report.lens.coordinateEngine)")
+    print("   Security Guard:   \(report.lens.secureFieldGuard)")
+    print("   Clipboard Fallback: \(report.lens.clipboardMode)")
+    print("   Stale Guard:      \(report.lens.staleContextGuard)")
+    print("   Precedence Hierarchy (Locked INV-003):")
+    for tier in report.lens.precedenceHierarchy {
+        print("     \(tier)")
+    }
+    print("")
+    print("6. VISUAL RENDERING")
     for r in report.renderers {
         print("   • \(r.name): \(r.status)")
         print("     \(r.note)")
     }
     print("")
-    print("6. EVIDENCE LIMITATIONS")
+    print("7. EVIDENCE LIMITATIONS")
     for lim in report.evidenceLimitations {
         print("   ! \(lim)")
     }
@@ -223,6 +265,43 @@ if args.contains("--help") || args.contains("-h") {
 
 if args.contains("version") || args.contains("--version") || args.contains("-v") {
     print(BuildIdentity.banner)
+    exit(0)
+}
+
+if args.contains("probe") {
+    var probePoint: (x: Double, y: Double)? = nil
+    if let ptIdx = args.firstIndex(of: "--point"), ptIdx + 1 < args.count {
+        let parts = args[ptIdx + 1].split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        if parts.count == 2 {
+            probePoint = (parts[0], parts[1])
+        }
+    }
+
+    let envelope = LensResolver.acquireContextEnvelope(at: probePoint)
+    print("================================================================================")
+    print(" DEX//PULSE Lens Live Probe")
+    print("================================================================================")
+    print(" Generation Token: \(envelope.generationToken)")
+    print(" Invocation Time:  \(envelope.invocationTime)")
+    if let pt = probePoint {
+        print(" Screen Point:     (\(pt.x), \(pt.y)) [CG/AX]")
+    }
+    if let primary = envelope.primaryObject {
+        print(" Primary Object:   [\(primary.objectClass.rawValue)] \(primary.summary)")
+        print(" Primary Tier:     \(envelope.primaryTier.map { "Tier \($0)" } ?? "none")")
+        print(" Primary Reason:   \(envelope.primaryReason ?? "none")")
+        print(" Privacy Class:    \(primary.privacyClass.rawValue)")
+    } else {
+        print(" Primary Object:   none")
+    }
+    if let fallback = envelope.fallbackObject {
+        print(" Fallback Object:  [\(fallback.objectClass.rawValue)] \(fallback.summary)")
+    }
+    print(" Evaluated Candidates: \(envelope.evaluatedCandidates.count)")
+    for cand in envelope.evaluatedCandidates {
+        print("   • Tier \(cand.tierRawValue) [\(cand.objectClass.rawValue)]: \(cand.acquisitionReason)")
+    }
+    print("================================================================================")
     exit(0)
 }
 

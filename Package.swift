@@ -43,7 +43,8 @@ let package = Package(
         .library(name: "PulseInteraction", targets: ["PulseInteraction"]),
         .executable(name: "DexPulseApp", targets: ["DexPulseApp"]),
         .executable(name: "dexpulse", targets: ["DexPulseCLI"]),
-        .executable(name: "PulseVerification", targets: ["PulseVerification"])
+        .executable(name: "PulseVerification", targets: ["PulseVerification"]),
+        .executable(name: "PulseLensFixtureApp", targets: ["PulseLensFixtureApp"])
     ],
     dependencies: [],
     targets: [
@@ -110,7 +111,8 @@ let package = Package(
             dependencies: [
                 "PulseCore",
                 "PulseWitness",
-                "PulseKit"
+                "PulseKit",
+                "PulseLens"
             ],
             path: "Sources/DexPulseCLI"
         ),
@@ -128,11 +130,28 @@ let package = Package(
             path: "Sources/PulseVerification"
         ),
         
+        // Synthetic Accessibility test fixture application
+        .executableTarget(
+            name: "PulseLensFixtureApp",
+            dependencies: [
+                "PulseCore",
+                "PulseLens"
+            ],
+            path: "Sources/PulseLensFixtureApp"
+        ),
+
         // Test targets
         .testTarget(
             name: "PulseCoreTests",
             dependencies: ["PulseCore"],
             path: "Tests/PulseCoreTests",
+            swiftSettings: testSwiftSettings,
+            linkerSettings: testLinkerSettings
+        ),
+        .testTarget(
+            name: "PulseLensTests",
+            dependencies: ["PulseLens", "PulseCore"],
+            path: "Tests/PulseLensTests",
             swiftSettings: testSwiftSettings,
             linkerSettings: testLinkerSettings
         ),
