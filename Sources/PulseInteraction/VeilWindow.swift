@@ -113,6 +113,7 @@ public final class VeilInteractionController: NSObject {
 
     /// Presents the Veil annular wheel at the designated causal origin point.
     public func present(at screenPoint: CGPoint? = nil, envelope providedEnvelope: PulseContextEnvelope? = nil) {
+        trialStore.reloadFromDisk()
         self.presentationTimestamp = Date()
         self.initialArmedDirection = nil
         self.lastInputRoute = .pointer
@@ -284,6 +285,7 @@ public final class VeilInteractionController: NSObject {
                 initialArmedDirection: initialArmedDirection,
                 finalSelectedDirection: nil,
                 selectedReflexID: nil,
+                selectedNestedChoiceID: nil,
                 seamCrossingCount: pointerTracker?.seamCrossings ?? 0,
                 maxRadialOvershootPt: pointerTracker?.maxRadialOvershoot ?? 0.0,
                 elapsedSelectionMs: (elapsed * 10).rounded() / 10,
@@ -355,7 +357,7 @@ public final class VeilInteractionController: NSObject {
 
         if trialStore.isTrialModeEnabled {
             let elapsed = presentationTimestamp.map { Date().timeIntervalSince($0) * 1000.0 } ?? 0.0
-            let reflexID = choiceID ?? layout.reflex(at: direction)?.id
+            let parentReflexID = layout.reflex(at: direction)?.id
             let record = VeilOwnerTrialRecord(
                 objectClass: layout.objectClass,
                 layoutFamily: layout.family,
@@ -363,7 +365,8 @@ public final class VeilInteractionController: NSObject {
                 inputRoute: lastInputRoute,
                 initialArmedDirection: initialArmedDirection,
                 finalSelectedDirection: direction,
-                selectedReflexID: reflexID,
+                selectedReflexID: parentReflexID,
+                selectedNestedChoiceID: choiceID,
                 seamCrossingCount: pointerTracker?.seamCrossings ?? 0,
                 maxRadialOvershootPt: pointerTracker?.maxRadialOvershoot ?? 0.0,
                 elapsedSelectionMs: (elapsed * 10).rounded() / 10,

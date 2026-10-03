@@ -7,12 +7,12 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 15,
-  "last_updated": "2026-10-03T19:00:00Z",
+  "state_revision": 16,
+  "last_updated": "2026-10-03T19:40:00Z",
   "current_baseline": {
     "identity": "Phase 5 Object Layout Freeze Trial",
     "state": "active-phase05-owner-trial-ready",
-    "last_verified": "2026-10-03T19:00:00Z"
+    "last_verified": "2026-10-03T19:40:00Z"
   },
   "scope_boundaries": [
     "DEX//PULSE native macOS V1 through Phase 4 Veil interaction engine, Phase 5 candidate/experimental layout registry, autonomous mechanical diagnostics, and Phase 5 Owner Trial infrastructure ready for real owner evaluation; zero frozen layouts; Phase 6 not started"
@@ -39,7 +39,7 @@
 - **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 5 test suites (`PulseCoreTests`, `PulseLensTests`, `PulseKitTests`, `PulseVerificationTests`, `PulseInteractionTests`).
 - **Active default user route:** Installed at `~/Applications/DEX_PULSE.app` with CLI `~/.local/bin/dexpulse`.
 - **Delivery state:** Local native build and user-install verified on MacBook Air M1.
-- **Last verified baseline:** 2026-10-03 (Phase 4 Veil real input verified; Phase 5 candidate/experimental registry verified with 10 candidate and 8 experimental layouts; 350 non-binding synthetic diagnostics; dedicated local Phase 5 Owner Trial Store implemented with structural separation, content-free schema, and CLI control surface; 0 frozen layouts; Phase 6 not started; ready for real owner trials).
+- **Last verified baseline:** 2026-10-03 (Phase 4 Veil real input verified; Phase 5 candidate/experimental registry verified with 10 candidate and 8 experimental layouts; 350 non-binding synthetic diagnostics; dedicated local Phase 5 Owner Trial Store implemented with cross-process mode synchronization, nested selection identity separation [selectedReflexID parent vs selectedNestedChoiceID nested choice], schema 2 upgrade compatibility, and CLI control surface; 0 real owner records; 0 frozen layouts; Phase 6 not started; ready for real owner trials).
 
 ## 3. Artifact Contract
 
@@ -238,6 +238,17 @@ None identified for the Phase 0/1/2/3/4 scope.
 - **Must remain unchanged:** Supplied original reference video bytes; locked user decisions; clean-room boundary.
 - **Mandatory checks:** `make check`, `make app`, `make install-user`, `scripts/validate_planning_source.sh`, `scripts/verify_fixtures.sh`.
 ## 13. Compact Revision Log
+
+### Revision 16 — 2026-10-03
+
+- **Artifact/source identity:** Phase 5 Owner Evidence Synchronization and Nested Selection Identity Repair (`branch: phase-05-layout-freeze`)
+- **State deltas:**
+  - **Cross-Process Trial Mode Synchronization:** `VeilInteractionController.present(at:envelope:)` reloads owner trial store state from disk immediately prior to presentation, ensuring running app instances observe CLI-driven mode changes (`dexpulse layout-trial start`/`stop`) without app restarts. In addition, `VeilOwnerTrialStore.recordTrial` and `markLastFeedback` reload disk state before inspecting trial status or appending/mutating records, guaranteeing cross-process consistency without background filesystem watchers or polling.
+  - **Nested Target vs Reflex Identity Separation:** Added optional `selectedNestedChoiceID: String?` to `VeilOwnerTrialRecord`. `selectedReflexID` strictly preserves the parent directional Reflex identifier (e.g., `repo.target`), while `selectedNestedChoiceID` records the specific nested choice (e.g., `target.bigmac`) for nested activations and `nil` for non-nested activations or cancellations.
+  - **Per-Class Aggregate Distribution Separation:** Updated `VeilOwnerClassAggregate` with `nestedChoiceDistribution: [String: Int]` alongside `reflexDistribution: [String: Int]`, ensuring nested choices are not conflated into parent reflex frequency histograms.
+  - **Schema Compatibility:** Upgraded store data schema to version 2 (`schemaVersion: 2`). Maintained full backward compatibility for schema 1 JSON records, safely decoding missing `selectedNestedChoiceID` as `nil` and transparently upgrading persisted files to schema 2 on reload.
+  - **Cross-Process & Nested Integration Testing:** Added integration tests verifying two separate store instances (`appStore` and `cliStore`) synchronizing trial mode toggles without restarts, asserting parent reflex and nested choice isolation, proving schema 1 backward compatibility, and verifying shared store stays strictly at 0 real records.
+- **New evidence:** All 99 unit tests passed across 5 suites (`PulseInteractionTests` 39, `PulseCoreTests` 38, `PulseLensTests` 15, `PulseKitTests` 3, `PulseVerificationTests` 4); `PulseVerification` passed 366/366 headless checks; `dexpulse doctor` and `dexpulse layout-trial` clean; `make check` passed 6/6 stages; `make app` built and signed release bundle.
 
 ### Revision 15 — 2026-10-03
 

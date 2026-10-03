@@ -982,11 +982,49 @@ final class PulseVerifier {
         if let rec = smokeStore.allRecords.first {
             assert(rec.objectClass == .selectedText, "Smoke record object class is .selectedText")
             assert(rec.finalSelectedDirection == .n, "Smoke record direction is .n")
+            assert(rec.selectedReflexID == "text.explain", "Non-nested selection has parent reflex ID")
+            assert(rec.selectedNestedChoiceID == nil, "Non-nested selection leaves nested choice nil")
             assert(!rec.wasCancelled, "Smoke record wasCancelled is false")
             assert(rec.feedback == .unreviewed, "Smoke record feedback is initially .unreviewed")
         }
 
-        // Run C: Trial mode ON -> present with .file & dismiss (cancellation) -> 2 records
+        // Run C: Nested selection on .repository -> parent reflex and nested choice separated
+        struct SmokeRepoObject: PulseObject {
+            let id: UUID = UUID()
+            let objectClass: ObjectClass = .repository
+            let source: ObjectSource = .selection
+            let createdAt: Date = Date()
+            let confidence: Double = 1.0
+            let provenance: ObjectProvenance = ObjectProvenance(acquisitionMethod: "test")
+            let privacyClass: PrivacyClass = .ordinary
+            let payloadDescriptor: String = "Smoke repo"
+            let summary: String = "Smoke repo"
+            let contextGenerationToken: String? = "smoke-token-repo"
+        }
+        let envRepo = PulseContextEnvelope(
+            generationToken: "smoke-token-repo",
+            primaryObject: SmokeRepoObject(),
+            primaryReason: "selection",
+            primaryTier: 1
+        )
+        smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envRepo)
+        smokeController.simulateActivation(direction: .se, choiceID: "target.bigmac")
+        assert(smokeStore.totalRealInvocations == 2, "Smoke run: 2 records after nested selection")
+        if let nestedRec = smokeStore.allRecords.last {
+            assert(nestedRec.objectClass == .repository, "Nested smoke record object class is .repository")
+            assert(nestedRec.finalSelectedDirection == .se, "Nested smoke record direction is .se")
+            assert(nestedRec.selectedReflexID == "repo.target", "Parent directional reflex is preserved as selectedReflexID (not target.bigmac)")
+            assert(nestedRec.selectedNestedChoiceID == "target.bigmac", "Nested choice ID is recorded in selectedNestedChoiceID")
+            assert(nestedRec.didEnterNested, "Nested interaction sets didEnterNested to true")
+        }
+
+        // Verify aggregate distribution separation
+        let aggRepo = smokeStore.aggregateMetrics(for: .repository)
+        assert(aggRepo.reflexDistribution["repo.target"] == 1, "Parent reflex histogram includes repo.target")
+        assert(aggRepo.reflexDistribution["target.bigmac"] == nil, "Parent reflex histogram strictly excludes nested choice target.bigmac")
+        assert(aggRepo.nestedChoiceDistribution["target.bigmac"] == 1, "Nested choice histogram includes target.bigmac")
+
+        // Run D: Trial mode ON -> present with .file & dismiss (cancellation) -> 3 records
         let envFile = PulseContextEnvelope(
             generationToken: "smoke-token-file",
             primaryObject: FileObject(path: "/tmp/smoke.txt", provenance: ObjectProvenance(acquisitionMethod: "test")),
@@ -995,21 +1033,28 @@ final class PulseVerifier {
         )
         smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envFile)
         smokeController.dismiss()
-        assert(smokeStore.totalRealInvocations == 2, "Smoke run: 2 records recorded after cancellation")
+        assert(smokeStore.totalRealInvocations == 3, "Smoke run: 3 records recorded after cancellation")
         if let rec = smokeStore.allRecords.last {
-            assert(rec.objectClass == .file, "Smoke record 2 object class is .file")
-            assert(rec.wasCancelled, "Smoke record 2 wasCancelled is true")
+            assert(rec.objectClass == .file, "Smoke record 3 object class is .file")
+            assert(rec.selectedNestedChoiceID == nil, "Cancellation leaves nested choice nil")
+            assert(rec.wasCancelled, "Smoke record 3 wasCancelled is true")
         }
 
-        // Run D: Mark feedback on cancellation
+        // Run E: Mark feedback on cancellation
         assert(smokeStore.markLastFeedback(.wrongDirection), "Marked feedback on last smoke record")
         assert(smokeStore.allRecords.last?.feedback == .wrongDirection, "Feedback updated to .wrongDirection")
 
-        // Run E: Trial mode OFF again -> present & activate -> count remains 2
-        smokeStore.setTrialModeEnabled(false)
+        // Run F: Cross-process mode sync test (separate CLI-like store instance on same file)
+        let cliLikeStore = VeilOwnerTrialStore(fileURL: smokeURL)
+        cliLikeStore.setTrialModeEnabled(false)
         smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envText)
         smokeController.simulateActivation(direction: .n, choiceID: nil)
-        assert(smokeStore.totalRealInvocations == 2, "Smoke run: count unchanged when trial mode is turned OFF")
+        assert(smokeStore.totalRealInvocations == 3, "Smoke run: count unchanged when CLI sets trial mode OFF without restart")
+
+        cliLikeStore.setTrialModeEnabled(true)
+        smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envText)
+        smokeController.simulateActivation(direction: .n, choiceID: nil)
+        assert(smokeStore.totalRealInvocations == 4, "Smoke run: invocation records when CLI sets trial mode ON without restart")
 
         // Strict Separation Verification: shared store remained at 0
         assert(VeilOwnerTrialStore.shared.totalRealInvocations == 0, "Shared real owner trial store remains strictly at 0 throughout all verification checks")

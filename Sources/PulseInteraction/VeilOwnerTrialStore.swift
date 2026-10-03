@@ -52,6 +52,7 @@ public struct VeilOwnerTrialRecord: Sendable, Codable, Equatable, Identifiable {
     public let initialArmedDirection: CompassDirection?
     public let finalSelectedDirection: CompassDirection?
     public let selectedReflexID: String?
+    public let selectedNestedChoiceID: String?
     public let seamCrossingCount: Int
     public let maxRadialOvershootPt: Double
     public let elapsedSelectionMs: Double
@@ -69,6 +70,7 @@ public struct VeilOwnerTrialRecord: Sendable, Codable, Equatable, Identifiable {
         initialArmedDirection: CompassDirection? = nil,
         finalSelectedDirection: CompassDirection? = nil,
         selectedReflexID: String? = nil,
+        selectedNestedChoiceID: String? = nil,
         seamCrossingCount: Int = 0,
         maxRadialOvershootPt: Double = 0.0,
         elapsedSelectionMs: Double = 0.0,
@@ -85,6 +87,7 @@ public struct VeilOwnerTrialRecord: Sendable, Codable, Equatable, Identifiable {
         self.initialArmedDirection = initialArmedDirection
         self.finalSelectedDirection = finalSelectedDirection
         self.selectedReflexID = selectedReflexID
+        self.selectedNestedChoiceID = selectedNestedChoiceID
         self.seamCrossingCount = seamCrossingCount
         self.maxRadialOvershootPt = maxRadialOvershootPt
         self.elapsedSelectionMs = elapsedSelectionMs
@@ -111,6 +114,7 @@ public struct VeilOwnerClassAggregate: Sendable, Codable, Equatable {
     public let maxRadialOvershootPt: Double
     public let directionDistribution: [CompassDirection: Int]
     public let reflexDistribution: [String: Int]
+    public let nestedChoiceDistribution: [String: Int]
     public let feedbackBreakdown: [VeilOwnerFeedback: Int]
     public let meetsInvocationThreshold: Bool
     public let remainingGaps: [String]
@@ -131,6 +135,7 @@ public struct VeilOwnerClassAggregate: Sendable, Codable, Equatable {
         maxRadialOvershootPt: Double,
         directionDistribution: [CompassDirection: Int],
         reflexDistribution: [String: Int],
+        nestedChoiceDistribution: [String: Int] = [:],
         feedbackBreakdown: [VeilOwnerFeedback: Int],
         meetsInvocationThreshold: Bool,
         remainingGaps: [String]
@@ -150,6 +155,7 @@ public struct VeilOwnerClassAggregate: Sendable, Codable, Equatable {
         self.maxRadialOvershootPt = maxRadialOvershootPt
         self.directionDistribution = directionDistribution
         self.reflexDistribution = reflexDistribution
+        self.nestedChoiceDistribution = nestedChoiceDistribution
         self.feedbackBreakdown = feedbackBreakdown
         self.meetsInvocationThreshold = meetsInvocationThreshold
         self.remainingGaps = remainingGaps
@@ -164,7 +170,7 @@ public struct VeilOwnerTrialStoreData: Sendable, Codable, Equatable {
     public var records: [VeilOwnerTrialRecord]
 
     public init(
-        schemaVersion: Int = 1,
+        schemaVersion: Int = 2,
         isTrialModeEnabled: Bool = false,
         lastUpdated: Date = Date(),
         records: [VeilOwnerTrialRecord] = []
@@ -249,11 +255,14 @@ public final class VeilOwnerTrialStore: @unchecked Sendable {
     public func recordTrial(_ record: VeilOwnerTrialRecord) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard data.isTrialModeEnabled else {
+        var currentData = VeilOwnerTrialStore.loadData(from: fileURL)
+        guard currentData.isTrialModeEnabled else {
+            data.isTrialModeEnabled = false
             return false
         }
-        data.records.append(record)
-        data.lastUpdated = Date()
+        currentData.records.append(record)
+        currentData.lastUpdated = Date()
+        data = currentData
         saveLocked()
         return true
     }
@@ -263,12 +272,14 @@ public final class VeilOwnerTrialStore: @unchecked Sendable {
     public func markLastFeedback(_ feedback: VeilOwnerFeedback) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard !data.records.isEmpty else {
+        var currentData = VeilOwnerTrialStore.loadData(from: fileURL)
+        guard !currentData.records.isEmpty else {
             return false
         }
-        let lastIndex = data.records.count - 1
-        data.records[lastIndex].feedback = feedback
-        data.lastUpdated = Date()
+        let lastIndex = currentData.records.count - 1
+        currentData.records[lastIndex].feedback = feedback
+        currentData.lastUpdated = Date()
+        data = currentData
         saveLocked()
         return true
     }
@@ -332,6 +343,11 @@ public final class VeilOwnerTrialStore: @unchecked Sendable {
             refDist[rId, default: 0] += 1
         }
 
+        var nestedDist: [String: Int] = [:]
+        for nId in matching.compactMap(\.selectedNestedChoiceID) {
+            nestedDist[nId, default: 0] += 1
+        }
+
         var feedbackBreakdown: [VeilOwnerFeedback: Int] = [:]
         for fb in VeilOwnerFeedback.allCases {
             feedbackBreakdown[fb] = 0
@@ -376,6 +392,7 @@ public final class VeilOwnerTrialStore: @unchecked Sendable {
             maxRadialOvershootPt: (maxOvershoot * 10).rounded() / 10,
             directionDistribution: dirDist,
             reflexDistribution: refDist,
+            nestedChoiceDistribution: nestedDist,
             feedbackBreakdown: feedbackBreakdown,
             meetsInvocationThreshold: meetsThreshold,
             remainingGaps: gaps
@@ -483,7 +500,11 @@ public final class VeilOwnerTrialStore: @unchecked Sendable {
             }
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(VeilOwnerTrialStoreData.self, from: raw)
+            var decoded = try decoder.decode(VeilOwnerTrialStoreData.self, from: raw)
+            if decoded.schemaVersion < 2 {
+                decoded.schemaVersion = 2
+            }
+            return decoded
         } catch {
             fputs("[VeilOwnerTrialStore] Warning: failed to decode \(url.path) (\(error)). Starting with clean state.\n", stderr)
             return VeilOwnerTrialStoreData()

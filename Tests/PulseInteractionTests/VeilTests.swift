@@ -1185,4 +1185,153 @@ struct VeilTests {
         #expect(VeilOwnerFeedback(cliString: "unreviewed") == .unreviewed)
         #expect(VeilOwnerFeedback(cliString: "invalid-flag") == nil)
     }
+
+    @Test("Cross-process trial mode toggling is observed without app restart")
+    func crossProcessTrialModeSynchronization() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-cross-process-sync-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let appStore = VeilOwnerTrialStore(fileURL: tempURL)
+        let cliStore = VeilOwnerTrialStore(fileURL: tempURL)
+
+        #expect(!appStore.isTrialModeEnabled)
+        #expect(!cliStore.isTrialModeEnabled)
+
+        let record = VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain"
+        )
+
+        // 1. App records while OFF -> fails, 0 records
+        #expect(!appStore.recordTrial(record))
+        #expect(appStore.totalRealInvocations == 0)
+
+        // 2. CLI turns trial mode ON
+        cliStore.setTrialModeEnabled(true)
+
+        // 3. App records trial without restart -> succeeds, 1 record
+        #expect(appStore.recordTrial(record))
+        #expect(appStore.totalRealInvocations == 1)
+
+        // 4. CLI turns trial mode OFF
+        cliStore.setTrialModeEnabled(false)
+
+        // 5. App attempts next trial without restart -> fails, count remains 1
+        #expect(!appStore.recordTrial(record))
+        #expect(appStore.totalRealInvocations == 1)
+        #expect(!appStore.isTrialModeEnabled)
+    }
+
+    @Test("Nested selection separates parent Reflex ID from nested choice ID")
+    func nestedSelectionSeparatesParentReflexAndChoiceID() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-nested-choice-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        store.setTrialModeEnabled(true)
+
+        // Non-nested selection
+        let nonNested = VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain",
+            selectedNestedChoiceID: nil,
+            didEnterNested: false
+        )
+        #expect(store.recordTrial(nonNested))
+
+        // Nested selection
+        let nested = VeilOwnerTrialRecord(
+            objectClass: .repository,
+            layoutFamily: .repoPath,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .se,
+            selectedReflexID: "repo.target",
+            selectedNestedChoiceID: "target.bigmac",
+            didEnterNested: true
+        )
+        #expect(store.recordTrial(nested))
+
+        #expect(store.totalRealInvocations == 2)
+
+        let savedNonNested = store.records(for: .selectedText).first
+        #expect(savedNonNested?.selectedReflexID == "text.explain")
+        #expect(savedNonNested?.selectedNestedChoiceID == nil)
+        #expect(savedNonNested?.didEnterNested == false)
+
+        let savedNested = store.records(for: .repository).first
+        #expect(savedNested?.selectedReflexID == "repo.target")
+        #expect(savedNested?.selectedNestedChoiceID == "target.bigmac")
+        #expect(savedNested?.didEnterNested == true)
+
+        let aggRepo = store.aggregateMetrics(for: .repository)
+        #expect(aggRepo.reflexDistribution["repo.target"] == 1)
+        #expect(aggRepo.reflexDistribution["target.bigmac"] == nil, "Parent reflex distribution must never contain nested choice ID")
+        #expect(aggRepo.nestedChoiceDistribution["target.bigmac"] == 1, "Nested choice distribution tracks nested choice ID")
+    }
+
+    @Test("Schema 1 records decode cleanly with nil nested choice and upgrade to schema 2")
+    func schema1UpgradeCompatibility() throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-schema-1-compat-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let schema1JSON = """
+        {
+          "schemaVersion": 1,
+          "isTrialModeEnabled": true,
+          "lastUpdated": "2026-10-03T18:00:00Z",
+          "records": [
+            {
+              "id": "11111111-2222-3333-4444-555555555555",
+              "timestamp": "2026-10-03T18:00:00Z",
+              "objectClass": "SelectedTextObject",
+              "layoutFamily": "Text",
+              "layoutVersion": "1.0.0-candidate",
+              "inputRoute": "pointer",
+              "finalSelectedDirection": "N",
+              "selectedReflexID": "text.explain",
+              "seamCrossingCount": 0,
+              "maxRadialOvershootPt": 0.0,
+              "elapsedSelectionMs": 10.0,
+              "wasCancelled": false,
+              "didEnterNested": false,
+              "feedback": "good"
+            }
+          ]
+        }
+        """
+        try schema1JSON.write(to: tempURL, atomically: true, encoding: .utf8)
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        #expect(store.isTrialModeEnabled)
+        #expect(store.totalRealInvocations == 1)
+
+        let record = store.allRecords.first
+        #expect(record?.selectedReflexID == "text.explain")
+        #expect(record?.selectedNestedChoiceID == nil, "Missing nested choice in schema 1 must decode to nil")
+        #expect(record?.feedback == .good)
+
+        let newRecord = VeilOwnerTrialRecord(
+            objectClass: .repository,
+            layoutFamily: .repoPath,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .se,
+            selectedReflexID: "repo.target",
+            selectedNestedChoiceID: "target.bigmac"
+        )
+        #expect(store.recordTrial(newRecord))
+
+        let reloadedStore = VeilOwnerTrialStore(fileURL: tempURL)
+        #expect(reloadedStore.totalRealInvocations == 2)
+        #expect(reloadedStore.allRecords.last?.selectedNestedChoiceID == "target.bigmac")
+    }
 }
