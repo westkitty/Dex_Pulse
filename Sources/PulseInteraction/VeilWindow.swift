@@ -44,9 +44,46 @@ public final class VeilInteractionController: NSObject {
 
     private var localKeyMonitor: Any?
     private var globalMouseMonitor: Any?
+    private var keyboardAdapter: VeilKeyboardDeliveryAdapter?
 
     public var showDebugGeometry: Bool = false {
         didSet { veilView?.showDebugGeometry = showDebugGeometry }
+    }
+
+    public var isKeyboardAdapterActive: Bool {
+        keyboardAdapter?.isRegistered ?? false
+    }
+
+    public var activeKeyboardChords: [VeilChordDescriptor] {
+        keyboardAdapter?.activeChords ?? []
+    }
+
+    public var currentPointerState: VeilPointerState {
+        pointerTracker?.currentState ?? .idle
+    }
+
+    public var currentArmedDirection: CompassDirection? {
+        pointerTracker?.armedDirection
+    }
+
+    public var currentActiveNestedChoiceID: String? {
+        pointerTracker?.activeNestedChoiceID
+    }
+
+    public var currentSelectedDirection: CompassDirection? {
+        keyboardNavigator?.selectedDirection
+    }
+
+    public var currentLayout: VeilObjectLayout? {
+        veilView?.layout
+    }
+
+    public var interactionView: VeilView? {
+        veilView
+    }
+
+    public var panelWindow: VeilWindow? {
+        window
     }
 
     public init(stateMachine: PulseStateMachine) {
@@ -197,7 +234,7 @@ public final class VeilInteractionController: NSObject {
         win.alphaValue = 0.0
         win.orderFrontRegardless()
 
-        let isReducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let isReducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || !NSApplication.shared.isRunning
         if isReducedMotion {
             win.alphaValue = 1.0
         } else {
@@ -236,7 +273,7 @@ public final class VeilInteractionController: NSObject {
             return
         }
 
-        let isReducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let isReducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || !NSApplication.shared.isRunning
         if isReducedMotion {
             win.orderOut(nil)
             do {
@@ -275,7 +312,72 @@ public final class VeilInteractionController: NSObject {
     private func setupTransientMonitors() {
         tearDownTransientMonitors()
 
-        // Local key monitor to intercept keys while presented without keylogging
+        // 1. Register temporary Carbon hotkey chords valid strictly while Veil is presented
+        let adapter = VeilKeyboardDeliveryAdapter()
+        let globalBinding = HotkeyBinding.default
+        _ = adapter.register(collisionBinding: globalBinding) { [weak self] action in
+            Task { @MainActor [weak self] in
+                guard let self = self, let nav = self.keyboardNavigator else { return }
+                switch action {
+                case .stepNext:
+                    nav.stepNext()
+                case .stepPrevious:
+                    nav.stepPrevious()
+                case .diveNested:
+                    _ = nav.diveNested()
+                case .backOutNested:
+                    _ = nav.backOutNested()
+                case .activate:
+                    _ = nav.activate()
+                case .cancel:
+                    nav.cancel()
+                case .directDirection(let dir):
+                    _ = nav.selectDirection(dir)
+                case .unhandled:
+                    break
+                }
+            }
+        }
+        self.keyboardAdapter = adapter
+
+        // 2. Global mouse monitor to track pointer moves over non-activating Veil surface
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown]) { [weak self] event in
+            guard let self = self, let win = self.window, win.isVisible, let view = self.veilView else { return }
+            let screenPoint = NSEvent.mouseLocation
+            if win.frame.contains(screenPoint) {
+                let windowPoint = win.convertPoint(fromScreen: screenPoint)
+                if let movedEvent = NSEvent.mouseEvent(
+                    with: event.type == .leftMouseDown ? .leftMouseDown : .mouseMoved,
+                    location: windowPoint,
+                    modifierFlags: event.modifierFlags,
+                    timestamp: event.timestamp,
+                    windowNumber: win.windowNumber,
+                    context: nil,
+                    eventNumber: event.eventNumber,
+                    clickCount: event.clickCount,
+                    pressure: event.pressure
+                ) {
+                    if event.type == .leftMouseDown {
+                        let viewPoint = view.convert(windowPoint, from: nil)
+                        let hit = view.pointerTracker.geometry.hitTest(
+                            point: viewPoint,
+                            armedDirection: view.pointerTracker.armedDirection,
+                            activeNestedParent: view.pointerTracker.activeNestedParent
+                        )
+                        switch hit {
+                        case .sector, .nestedSector:
+                            view.mouseDown(with: movedEvent)
+                        case .neutralCenter, .outside:
+                            break
+                        }
+                    } else {
+                        view.mouseMoved(with: movedEvent)
+                    }
+                }
+            }
+        }
+
+        // 3. Local key monitor if application event loop receives key down
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self, let nav = self.keyboardNavigator else { return event }
             if nav.handleNSEvent(event) {
@@ -286,6 +388,10 @@ public final class VeilInteractionController: NSObject {
     }
 
     private func tearDownTransientMonitors() {
+        if let adapter = keyboardAdapter {
+            adapter.unregister()
+            keyboardAdapter = nil
+        }
         if let monitor = localKeyMonitor {
             NSEvent.removeMonitor(monitor)
             localKeyMonitor = nil
@@ -294,6 +400,13 @@ public final class VeilInteractionController: NSObject {
             NSEvent.removeMonitor(monitor)
             globalMouseMonitor = nil
         }
+    }
+
+    /// Delivers a synthetic hotkey chord for testing the Carbon event delivery path.
+    @discardableResult
+    public func deliverSyntheticHotkey(action: VeilKeyAction) -> Bool {
+        guard let adapter = keyboardAdapter else { return false }
+        return adapter.deliverSyntheticEvent(for: action)
     }
 }
 #endif

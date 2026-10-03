@@ -4,7 +4,7 @@ import AppKit
 #endif
 
 /// Abstract representation of key actions recognized by the Veil keyboard engine.
-public enum VeilKeyAction: Sendable, Equatable {
+public enum VeilKeyAction: Sendable, Equatable, Hashable {
     case stepNext
     case stepPrevious
     case diveNested

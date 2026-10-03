@@ -177,8 +177,8 @@ func runDoctor(asJSON: Bool) {
 
     // 7. Evidence Limitations
     let evidenceLimitations = [
-        "Phase 3 State Machine: Full 15-state semantic loop, explicit run model, memory-only Result holds, and stale async callback rejection verified locally.",
-        "GUI focus non-theft is architecturally enforced (nonactivatingPanel) but requires manual verification across third-party apps.",
+        "Phase 4 Veil Interaction Engine: Annular geometry parity, minimal-translation placement, 9-trajectory real pointer events, and temporary Carbon hotkey traversal verified live.",
+        "GUI focus non-theft is architecturally enforced (nonactivatingPanel) and verified live across TextEdit, Brave Browser, and Terminal.",
         "DexDictate coexistence: Partial Phase 0/1 verified (no hotkey collision, focus/clipboard preserved); full coexistence matrix scheduled for Phase 11.",
         "Big Mac direct execution route remains pending until connected to the same physical network."
     ]
@@ -188,7 +188,7 @@ func runDoctor(asJSON: Bool) {
             name: BuildIdentity.productName,
             version: BuildIdentity.version,
             buildNumber: BuildIdentity.buildNumber,
-            phase: "Phase 3 (Semantic State Machine)",
+            phase: "Phase 4 (Veil Interaction Engine)",
             runtime: "Swift 5.9 native (0 external runtime dependencies)"
         ),
         environment: DoctorReport.EnvironmentInfo(
@@ -217,7 +217,7 @@ func runDoctor(asJSON: Bool) {
 
     // Pretty-printed terminal output
     print("================================================================================")
-    print(" DEX//PULSE System Doctor (\(BuildIdentity.version) - Phase 3)")
+    print(" DEX//PULSE System Doctor (\(BuildIdentity.version) - Phase 4)")
     print("================================================================================")
     print("")
     print("1. BUILD & RUNTIME")

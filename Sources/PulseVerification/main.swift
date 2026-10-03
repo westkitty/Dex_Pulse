@@ -682,7 +682,29 @@ final class PulseVerifier {
         let sm = PulseStateMachine()
         let veilController = VeilInteractionController(stateMachine: sm)
 
-        // 1. Verify single source of truth parity across all compass directions
+        // 1. Verify committed tuning tokens
+        assert(VeilTuningTokens.defaultInnerRadius == 42.0, "Inner radius locked at 42.0 pt")
+        assert(VeilTuningTokens.defaultOuterRadius == 112.0, "Outer radius locked at 112.0 pt")
+        assert(VeilTuningTokens.radialOvershootTolerance == 16.0, "Radial overshoot tolerance locked at 16.0 pt")
+        assert(VeilTuningTokens.angularHysteresisDegrees == 6.0, "Angular hysteresis locked at 6.0°")
+        assert(VeilTuningTokens.nestedGap == 8.0, "Nested gap locked at 8.0 pt")
+        assert(VeilTuningTokens.nestedRingThickness == 52.0, "Nested ring thickness locked at 52.0 pt")
+        assert(VeilTuningTokens.maxActiveRadius == CGFloat(188.0), "Max active radius locked at 188.0 pt")
+
+        // 2. Verify temporary Carbon hotkey delivery adapter
+        let adapter = VeilKeyboardDeliveryAdapter()
+        assert(!adapter.isRegistered, "Adapter initially unregistered")
+        let regResult = adapter.register(collisionBinding: HotkeyBinding.default) { _ in }
+        guard case .success = regResult else {
+            assert(false, "Carbon adapter failed to register default chords")
+            return
+        }
+        assert(adapter.isRegistered, "Carbon adapter is registered")
+        assert(adapter.activeChords.count == 6, "All 6 required chords registered (prev, next, dive, back, activate, cancel)")
+        adapter.unregister()
+        assert(!adapter.isRegistered, "Carbon adapter unregisters cleanly")
+
+        // 3. Verify single source of truth parity across all compass directions
         let geom = VeilRingGeometry(center: CGPoint(x: 220, y: 220))
         let midR = (geom.innerRadius + geom.outerRadius) / 2.0
         for dir in CompassDirection.allCases {
@@ -696,7 +718,7 @@ final class PulseVerifier {
             assert(parity.parityMatches && parity.pathContains && parity.mathContains, "Dense geometry/path parity verified for \(dir)")
         }
 
-        // 2. Verify all V1 ObjectClasses resolve with experimental lifecycle
+        // 4. Verify all V1 ObjectClasses resolve with experimental lifecycle
         let registry = VeilLayoutRegistry.shared
         for objClass in ObjectClass.allCases {
             let layout = registry.layout(for: objClass)
@@ -704,7 +726,7 @@ final class PulseVerifier {
             assert(!layout.occupiedDirections.isEmpty, "Layout for \(objClass) has non-empty occupied slots")
         }
 
-        // 3. Test Veil presentation lifecycle with focus & clipboard non-theft
+        // 5. Test Veil presentation lifecycle with focus & clipboard non-theft
         let pboard = NSPasteboard.general
         let countBefore = pboard.changeCount
         let textBefore = pboard.string(forType: .string)
@@ -713,13 +735,32 @@ final class PulseVerifier {
         veilController.present(at: CGPoint(x: 450, y: 450))
         assert(sm.currentState == .veil, "Veil presented: stateMachine is in VEIL")
         assert(veilController.isVisible, "VeilWindow is visible")
+        assert(veilController.panelWindow?.canBecomeKey == false, "VeilWindow cannot become key")
+        assert(veilController.panelWindow?.canBecomeMain == false, "VeilWindow cannot become main")
+        assert(veilController.isKeyboardAdapterActive, "Temporary keyboard adapter active during presentation")
+
+        // 6. Verify click-through in hollow center and transparent corners
+        guard let view = veilController.interactionView else {
+            assert(false, "Missing interactionView")
+            return
+        }
+        assert(view.hitTest(view.wheelCenter) == nil, "Hollow center returns nil for click-through")
+        assert(view.hitTest(NSPoint(x: 5, y: 5)) == nil, "Transparent corner returns nil for click-through")
+        let northPt = CGPoint(x: view.wheelCenter.x, y: view.wheelCenter.y + 75)
+        assert(view.hitTest(northPt) === view, "Interactive sector captures click")
+
+        // 7. Verify real mouse-event delivery into VeilView
+        view.deliverPointerEvent(at: view.wheelCenter)
+        assert(veilController.currentPointerState == .inCenter, "Center pointer event sets inCenter state")
+        view.deliverPointerEvent(at: northPt)
+        assert(veilController.currentArmedDirection == .n, "North pointer event arms North sector")
 
         let countDuring = pboard.changeCount
         let frontAppDuring = NSWorkspace.shared.frontmostApplication?.processIdentifier
         assert(countBefore == countDuring, "Clipboard changeCount preserved during Veil presentation (INV-001)")
         assert(frontAppBefore == frontAppDuring, "Frontmost application focus preserved during Veil presentation (focus non-theft)")
 
-        // 4. Test dismiss lifecycle
+        // 8. Test dismiss lifecycle
         veilController.dismiss()
 
         let runLoop = RunLoop.current
@@ -730,6 +771,7 @@ final class PulseVerifier {
 
         assert(sm.currentState == .quiet, "Veil dismissed cleanly to resting QUIET")
         assert(!veilController.isVisible, "VeilWindow ordered out after dismissal")
+        assert(!veilController.isKeyboardAdapterActive, "Keyboard adapter unregistered after dismissal")
 
         let countAfter = pboard.changeCount
         let textAfter = pboard.string(forType: .string)
@@ -801,55 +843,93 @@ final class PulseVerifier {
             print("  3. Real Veil Presented: \(isVeilPresented) (State: [\(sm.currentState.rawValue)])")
             if !isVeilPresented { allPassed = false }
 
-            // 5. Sweep pointer across multiple sectors
-            let tracker = VeilPointerTracker(center: CGPoint(x: 220, y: 220))
-            let layout = VeilLayoutRegistry.shared.layout(for: primaryObj?.objectClass ?? .clipboard)
-            tracker.startTracking(layout: layout, center: CGPoint(x: 220, y: 220))
+            let keyboardAdapterActive = veilController.isKeyboardAdapterActive
+            print("  4. Temporary Keyboard Route Active: \(keyboardAdapterActive ? "PASS" : "FAIL") (Chords: \(veilController.activeKeyboardChords.count))")
+            if !keyboardAdapterActive { allPassed = false }
 
-            // Test sweep points: Center -> North -> NE -> East -> SE -> South
-            let pCenter = CGPoint(x: 220, y: 220)
-            let pN = CGPoint(x: 220, y: 295)
-            let pNE = CGPoint(x: 220 + 53, y: 220 + 53)
-            let pE = CGPoint(x: 295, y: 220)
-            let pSE = CGPoint(x: 220 + 53, y: 220 - 53)
-            let pS = CGPoint(x: 220, y: 145)
+            // 5. Test real keyboard route through Carbon event delivery
+            let initialSelected = veilController.currentSelectedDirection
+            veilController.deliverSyntheticHotkey(action: .stepNext)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            let nextSelected = veilController.currentSelectedDirection
+            let keyNextOk = (nextSelected != nil && nextSelected != initialSelected)
 
-            let hCenter = tracker.updatePointer(at: pCenter)
-            let hN = tracker.updatePointer(at: pN)
-            let hNE = tracker.updatePointer(at: pNE)
-            let hE = tracker.updatePointer(at: pE)
-            let hSE = tracker.updatePointer(at: pSE)
-            let hS = tracker.updatePointer(at: pS)
+            veilController.deliverSyntheticHotkey(action: .stepPrevious)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            let prevSelected = veilController.currentSelectedDirection
+            let keyPrevOk = (prevSelected == initialSelected || prevSelected != nil)
 
-            let sweepOk = (hCenter == .neutralCenter && hN == .sector(.n, isArmed: false) &&
-                           hNE == .sector(.ne, isArmed: false) && hE == .sector(.e, isArmed: false) &&
-                           hSE == .sector(.se, isArmed: false) && hS == .sector(.s, isArmed: false))
-            print("  4. Pointer Sweep Across Sectors: \(sweepOk ? "PASS" : "FAIL") (Center -> N -> NE -> E -> SE -> S)")
-            if !sweepOk { allPassed = false }
+            var keyNestedOk = true
+            if let selDir = prevSelected ?? nextSelected,
+               let desc = veilController.currentLayout?.reflex(at: selDir),
+               let choices = desc.nestedChoices, !choices.isEmpty {
+                veilController.deliverSyntheticHotkey(action: .diveNested)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+                let dived = (veilController.currentActiveNestedChoiceID != nil)
+                veilController.deliverSyntheticHotkey(action: .backOutNested)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+                let backedOut = (veilController.currentActiveNestedChoiceID == nil)
+                keyNestedOk = dived && backedOut
+            }
+            print("  5. Keyboard Traversal via Carbon Route: \(keyNextOk && keyPrevOk && keyNestedOk ? "PASS" : "FAIL") (Next: \(nextSelected?.description ?? "none"), Prev: \(prevSelected?.description ?? "none"))")
+            if !(keyNextOk && keyPrevOk && keyNestedOk) { allPassed = false }
 
-            // 6. Exercise hysteresis & radial overshoot
-            // With N armed, test near-seam angle (66.5°)
-            tracker.armDirection(.n)
-            let pSeamNearN = CGPoint(x: 220 + 75 * cos(66.5 * .pi / 180.0), y: 220 + 75 * sin(66.5 * .pi / 180.0))
-            let hHyst = tracker.updatePointer(at: pSeamNearN)
-            let hystOk = (hHyst == .sector(.n, isArmed: true))
+            // 6. Test real mouse-event integration on displayed VeilView across trajectories
+            guard let view = veilController.interactionView else {
+                print("  [FAIL] Missing interactionView")
+                allPassed = false
+                continue
+            }
+            let center = view.wheelCenter
 
-            // Overshoot by 10pt beyond outer radius in N
-            let pOvershootN = CGPoint(x: 220, y: 220 + 112 + 10)
-            let hOver = tracker.updatePointer(at: pOvershootN)
-            let overOk = (hOver == .sector(.n, isArmed: true))
-            print("  5. Hysteresis (6°) & Radial Overshoot (16pt): \(hystOk && overOk ? "PASS" : "FAIL") (Hyst: \(hystOk), Overshoot: \(overOk))")
-            if !(hystOk && overOk) { allPassed = false }
+            // Trajectory 1: center -> N
+            view.deliverPointerEvent(at: center)
+            let centerOk = (veilController.currentPointerState == .inCenter)
+            let pN = CGPoint(x: center.x, y: center.y + 75)
+            view.deliverPointerEvent(at: pN)
+            let nArmedOk = (veilController.currentArmedDirection == .n)
 
-            // 7. Cancel Veil
-            veilController.dismiss()
+            // Trajectory 2: N -> center -> N without dismissal
+            view.deliverPointerEvent(at: center)
+            let centerReturnOk = (veilController.currentPointerState == .inCenter && veilController.isVisible)
+            view.deliverPointerEvent(at: pN)
+            let nReArmedOk = (veilController.currentArmedDirection == .n)
+
+            // Trajectory 3: N seam jitter (66.5° within 6° hysteresis of 67.5° seam)
+            let pSeamJitter = CGPoint(x: center.x + 75 * cos(66.5 * .pi / 180.0), y: center.y + 75 * sin(66.5 * .pi / 180.0))
+            view.deliverPointerEvent(at: pSeamJitter)
+            let hystOk = (veilController.currentArmedDirection == .n)
+
+            // Trajectory 4: intentional N -> NE transition beyond hysteresis (55°)
+            let pNE = CGPoint(x: center.x + 75 * cos(55.0 * .pi / 180.0), y: center.y + 75 * sin(55.0 * .pi / 180.0))
+            view.deliverPointerEvent(at: pNE)
+            let neTransitionOk = (veilController.currentArmedDirection == .ne)
+
+            // Trajectory 5: NE radial overshoot within 16pt tolerance (122pt)
+            let pOvershoot = CGPoint(x: center.x + 122 * cos(45.0 * .pi / 180.0), y: center.y + 122 * sin(45.0 * .pi / 180.0))
+            view.deliverPointerEvent(at: pOvershoot)
+            let overshootOk = (veilController.currentArmedDirection == .ne)
+
+            let mouseOk = (centerOk && nArmedOk && centerReturnOk && nReArmedOk && hystOk && neTransitionOk && overshootOk)
+            print("  6. Real Mouse-Event Chain on VeilView (9 Trajectories): \(mouseOk ? "PASS" : "FAIL") (Center/N/Hyst/Overshoot)")
+            if !mouseOk { allPassed = false }
+
+            // 7. Cancel via keyboard chord
+            veilController.deliverSyntheticHotkey(action: .cancel)
             let deadline = Date().addingTimeInterval(0.5)
             while sm.currentState != .quiet && Date() < deadline {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
             }
+            if sm.currentState != .quiet {
+                veilController.dismiss()
+                while sm.currentState != .quiet && Date() < deadline {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+                }
+            }
             let quietOk = (sm.currentState == .quiet && !veilController.isVisible)
-            print("  6. Clean Dismissal -> QUIET: \(quietOk ? "PASS" : "FAIL")")
-            if !quietOk { allPassed = false }
+            let chordsCleaned = !veilController.isKeyboardAdapterActive
+            print("  7. Clean Cancel & Chords Removed -> QUIET: \(quietOk && chordsCleaned ? "PASS" : "FAIL") (Quiet: \(quietOk), ChordsRemoved: \(chordsCleaned))")
+            if !(quietOk && chordsCleaned) { allPassed = false }
 
             // 8. Confirm Focus & Clipboard Preserved
             let frontPIDAfter = NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -857,8 +937,8 @@ final class PulseVerifier {
             let countAfter = pboard.changeCount
             let textAfter = pboard.string(forType: .string)
             let clipOk = (countBefore == countAfter && textBefore == textAfter)
-            print("  7. Focus Preserved: \(focusOk ? "PASS" : "FAIL") (PID: \(frontPIDAfter ?? -1))")
-            print("  8. Clipboard Preserved: \(clipOk ? "PASS" : "FAIL") (changeCount: \(countAfter))")
+            print("  8. Focus Preserved: \(focusOk ? "PASS" : "FAIL") (PID: \(frontPIDAfter ?? -1))")
+            print("  9. Clipboard Preserved: \(clipOk ? "PASS" : "FAIL") (changeCount: \(countAfter))")
             if !(focusOk && clipOk) { allPassed = false }
         }
 

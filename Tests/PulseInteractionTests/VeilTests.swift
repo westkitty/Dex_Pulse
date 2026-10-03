@@ -505,5 +505,264 @@ struct VeilTests {
         let northPt = NSPoint(x: 220, y: 295)
         #expect(view.hitTest(northPt) === view, "Primary sector must intercept clicks")
     }
+
+    // MARK: - 7. Real Input Integration & Carbon Hotkey Delivery Proof (Stage A)
+
+    @Test("Veil tuning tokens lock 42pt inner, 112pt outer, 16pt overshoot, 6deg hysteresis, 8pt nested gap, 52pt nested thickness")
+    func tuningTokensCommitment() {
+        #expect(VeilTuningTokens.defaultInnerRadius == 42.0)
+        #expect(VeilTuningTokens.defaultOuterRadius == 112.0)
+        #expect(VeilTuningTokens.radialOvershootTolerance == 16.0)
+        #expect(VeilTuningTokens.angularHysteresisDegrees == 6.0)
+        #expect(VeilTuningTokens.nestedGap == 8.0)
+        #expect(VeilTuningTokens.nestedRingThickness == 52.0)
+        #expect(VeilTuningTokens.maxActiveRadius == CGFloat(188.0))
+    }
+
+    @Test("VeilKeyboardDeliveryAdapter registers default chords, avoids collisions, and unregisters cleanly")
+    func keyboardDeliveryAdapterLifecycle() {
+        let adapter = VeilKeyboardDeliveryAdapter()
+        #expect(!adapter.isRegistered)
+        #expect(adapter.activeChords.isEmpty)
+
+        // 1. Collision check against simulated duplicate binding
+        let duplicateBinding = HotkeyBinding(keyCode: 30, modifiers: [.control, .option])
+        let collisionResult = adapter.register(collisionBinding: duplicateBinding) { _ in }
+        #expect(!adapter.isRegistered)
+        if case .failure(let err) = collisionResult {
+            #expect(err == .collisionWithGlobalHotkey(keyCode: 30, modifiers: [.control, .option]))
+        } else {
+            #expect(Bool(false), "Must fail on collision with registered binding")
+        }
+
+        // 2. Successful registration with default global hotkey (Shift-Command-Space)
+        let globalBinding = HotkeyBinding.default // KeyCode 49, Modifiers [.command, .shift]
+        let regResult = adapter.register(collisionBinding: globalBinding) { _ in }
+        #expect(adapter.isRegistered)
+        #expect(adapter.activeChords.count == 6)
+        if case .success(let count) = regResult {
+            #expect(count == 6)
+        } else {
+            #expect(Bool(false), "Registration must succeed when no collision exists")
+        }
+
+        // 3. Inspectable chords
+        let actions = Set(adapter.activeChords.map { $0.action })
+        #expect(actions.contains(.stepPrevious))
+        #expect(actions.contains(.stepNext))
+        #expect(actions.contains(.diveNested))
+        #expect(actions.contains(.backOutNested))
+        #expect(actions.contains(.activate))
+        #expect(actions.contains(.cancel))
+
+        // 4. Clean unregistration leaves zero registrations
+        adapter.unregister()
+        #expect(!adapter.isRegistered)
+        #expect(adapter.activeChords.isEmpty)
+    }
+
+    @Test("VeilKeyboardDeliveryAdapter delivers synthetic Carbon events to handler")
+    @MainActor
+    func keyboardDeliveryAdapterSyntheticEvent() {
+        let adapter = VeilKeyboardDeliveryAdapter()
+        final class ActionCollector: @unchecked Sendable {
+            var actions: [VeilKeyAction] = []
+        }
+        let collector = ActionCollector()
+
+        _ = adapter.register(collisionBinding: .default) { action in
+            collector.actions.append(action)
+        }
+        #expect(adapter.isRegistered)
+
+        // Deliver synthetic events for next and cancel
+        let deliveredNext = adapter.deliverSyntheticEvent(for: .stepNext)
+        #expect(deliveredNext)
+
+        let deliveredCancel = adapter.deliverSyntheticEvent(for: .cancel)
+        #expect(deliveredCancel)
+
+        // Pump main thread queue
+        let deadline = Date().addingTimeInterval(0.3)
+        while collector.actions.count < 2 && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+
+        #expect(collector.actions.contains(.stepNext))
+        #expect(collector.actions.contains(.cancel))
+
+        adapter.unregister()
+        #expect(!adapter.isRegistered)
+    }
+
+    @Test("Real mouse-event integration drives VeilView, tracking area callback, pointerTracker, and selection across 9 trajectories")
+    @MainActor
+    func realMouseEventChainAcrossNineTrajectories() {
+        let layout = VeilLayoutRegistry.shared.layout(for: .selectedText)
+        let center = CGPoint(x: 220, y: 220)
+        let placement = VeilPlacementResult(
+            veilCenter: center,
+            causalOrigin: center,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            screenFrame: CGRect(x: 0, y: 0, width: 1440, height: 900)
+        )
+        let tracker = VeilPointerTracker(center: center)
+        let nav = VeilKeyboardNavigator(layout: layout)
+        tracker.startTracking(layout: layout, center: center)
+
+        let view = VeilView(
+            frame: NSRect(x: 0, y: 0, width: 440, height: 440),
+            layout: layout,
+            placement: placement,
+            pointerTracker: tracker,
+            keyboardNavigator: nav
+        )
+        let win = VeilWindow(contentRect: NSRect(x: 100, y: 100, width: 440, height: 440))
+        win.contentView = view
+
+        final class BoundaryExitCollector: @unchecked Sendable {
+            var exited: Bool = false
+        }
+        let exitCollector = BoundaryExitCollector()
+        tracker.onExitBoundary = { _ in exitCollector.exited = true }
+
+        // Trajectory 1: center -> N
+        view.deliverPointerEvent(at: CGPoint(x: 220, y: 220))
+        #expect(tracker.currentState == .inCenter)
+        view.deliverPointerEvent(at: CGPoint(x: 220, y: 295))
+        #expect(tracker.currentState == .sectorArmed(.n))
+
+        // Trajectory 2: N -> center -> N without dismissal
+        view.deliverPointerEvent(at: CGPoint(x: 220, y: 220))
+        #expect(tracker.currentState == .inCenter)
+        #expect(!exitCollector.exited, "Center traversal must not trigger boundary exit")
+        view.deliverPointerEvent(at: CGPoint(x: 220, y: 295))
+        #expect(tracker.currentState == .sectorArmed(.n))
+
+        // Trajectory 3: N seam jitter (66.5° within 6° hysteresis of 67.5° seam)
+        let seamJitterPoint = CGPoint(
+            x: 220 + 75 * cos(66.5 * .pi / 180.0),
+            y: 220 + 75 * sin(66.5 * .pi / 180.0)
+        )
+        view.deliverPointerEvent(at: seamJitterPoint)
+        #expect(tracker.currentState == .sectorArmed(.n), "Seam jitter within 6° hysteresis must preserve armed N")
+
+        // Trajectory 4: intentional N -> NE transition beyond hysteresis (55°)
+        let nePoint = CGPoint(
+            x: 220 + 75 * cos(55.0 * .pi / 180.0),
+            y: 220 + 75 * sin(55.0 * .pi / 180.0)
+        )
+        view.deliverPointerEvent(at: nePoint)
+        #expect(tracker.currentState == .sectorArmed(.ne), "Moving beyond hysteresis must cleanly switch to NE")
+
+        // Trajectory 5: NE radial overshoot within tolerance (outerRadius 112 + 10pt = 122pt at 45°)
+        let overPt = CGPoint(
+            x: 220 + 122 * cos(45.0 * .pi / 180.0),
+            y: 220 + 122 * sin(45.0 * .pi / 180.0)
+        )
+        view.deliverPointerEvent(at: overPt)
+        #expect(tracker.currentState == .sectorArmed(.ne), "Radial overshoot within 16pt must maintain armed NE")
+
+        // Trajectory 6: travel beyond tolerance (exceeding maxActiveRadius + 24pt = 212pt)
+        let outsidePt = CGPoint(
+            x: 220 + 240 * cos(45.0 * .pi / 180.0),
+            y: 220 + 240 * sin(45.0 * .pi / 180.0)
+        )
+        view.deliverPointerEvent(at: outsidePt)
+        #expect(exitCollector.exited, "Pointer excursion beyond overshoot envelope must trigger boundary exit")
+
+        // Trajectory 7: parent -> nested choice
+        // Use errorLog layout where SE has nested choices or configure nested on parent
+        let errorLayout = VeilLayoutRegistry.shared.layout(for: .errorLog)
+        let errorTracker = VeilPointerTracker(center: center)
+        let errorNav = VeilKeyboardNavigator(layout: errorLayout)
+        errorTracker.startTracking(layout: errorLayout, center: center)
+        let errorView = VeilView(
+            frame: NSRect(x: 0, y: 0, width: 440, height: 440),
+            layout: errorLayout,
+            placement: placement,
+            pointerTracker: errorTracker,
+            keyboardNavigator: errorNav
+        )
+        let errorWin = VeilWindow(contentRect: NSRect(x: 100, y: 100, width: 440, height: 440))
+        errorWin.contentView = errorView
+
+        // Arm SE (parent direction for send to agent with nested choices)
+        let sePt = CGPoint(
+            x: 220 + 75 * cos(315.0 * .pi / 180.0),
+            y: 220 + 75 * sin(315.0 * .pi / 180.0)
+        )
+        errorView.deliverPointerEvent(at: sePt)
+        #expect(errorTracker.currentState == .sectorArmed(.se))
+        #expect(errorTracker.activeNestedParent == .se)
+
+        // Move into nested ring sector (radius = 112 + 8 + 26 = 146pt at 315°)
+        let nestedPt = CGPoint(
+            x: 220 + 146 * cos(315.0 * .pi / 180.0),
+            y: 220 + 146 * sin(315.0 * .pi / 180.0)
+        )
+        errorView.deliverPointerEvent(at: nestedPt)
+        if case .nestedArmed(let parent, let choiceID) = errorTracker.currentState {
+            #expect(parent == .se)
+            #expect(!choiceID.isEmpty)
+        } else {
+            #expect(Bool(false), "Must be in nestedArmed state")
+        }
+
+        // Trajectory 8: nested -> parent
+        errorView.deliverPointerEvent(at: sePt)
+        #expect(errorTracker.currentState == .sectorArmed(.se))
+
+        // Trajectory 9: cancel
+        errorNav.cancel()
+        #expect(errorNav.selectedDirection == nil)
+    }
+
+    @Test("Hollow center traversal preserves pointer tracking without false dismissal while passing mouse clicks through to underlying applications")
+    @MainActor
+    func centerTraversalAndClickThroughContract() {
+        let sm = PulseStateMachine()
+        let controller = VeilInteractionController(stateMachine: sm)
+
+        // 1. Present Veil
+        controller.present(at: CGPoint(x: 400, y: 400))
+        #expect(controller.isVisible)
+        #expect(sm.currentState == .veil)
+        #expect(controller.panelWindow?.canBecomeKey == false)
+        #expect(controller.panelWindow?.canBecomeMain == false)
+
+        guard let view = controller.interactionView else {
+            #expect(Bool(false), "Missing interactionView")
+            return
+        }
+
+        // 2. Hollow center hitTest must return nil (pass through to underlying apps)
+        let centerPoint = view.wheelCenter
+        #expect(view.hitTest(centerPoint) == nil, "Click in hollow center must return nil to pass through")
+
+        // 3. Transparent corner hitTest must return nil
+        #expect(view.hitTest(NSPoint(x: 5, y: 5)) == nil, "Click in transparent corner must return nil")
+
+        // 4. Interactive sector hitTest must return the view
+        let northPoint = CGPoint(x: centerPoint.x, y: centerPoint.y + 75)
+        #expect(view.hitTest(northPoint) === view, "Click in interactive sector must be captured by VeilView")
+
+        // 5. Center traversal preserves tracking alive
+        view.deliverPointerEvent(at: northPoint)
+        #expect(controller.currentArmedDirection != nil)
+        view.deliverPointerEvent(at: centerPoint)
+        #expect(controller.currentPointerState == .inCenter)
+        #expect(controller.isVisible, "Veil must remain visible when entering center")
+
+        // 6. Dismiss cleanly
+        controller.dismiss()
+        let deadline = Date().addingTimeInterval(0.3)
+        while sm.currentState != .quiet && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        #expect(sm.currentState == .quiet)
+        #expect(!controller.isVisible)
+        #expect(!controller.isKeyboardAdapterActive)
+    }
     #endif
 }

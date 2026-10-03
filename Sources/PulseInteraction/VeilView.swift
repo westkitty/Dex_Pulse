@@ -126,6 +126,42 @@ public final class VeilView: NSView {
         }
     }
 
+    /// Delivers an actual NSEvent.mouseMoved to this view at the given view coordinates.
+    ///
+    /// Verifies the full chain: NSEvent -> VeilView.mouseMoved -> VeilPointerTracker -> armed selection -> UI update.
+    public func deliverPointerEvent(at viewPoint: CGPoint) {
+        let windowPoint = convert(viewPoint, to: nil)
+        guard let event = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: windowPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) else { return }
+        self.mouseMoved(with: event)
+    }
+
+    /// Delivers an actual NSEvent.leftMouseDown to this view at the given view coordinates.
+    public func deliverClickEvent(at viewPoint: CGPoint) {
+        let windowPoint = convert(viewPoint, to: nil)
+        guard let event = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: windowPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1.0
+        ) else { return }
+        self.mouseDown(with: event)
+    }
+
     // MARK: - Drawing & Parity
 
     public override func draw(_ dirtyRect: NSRect) {
