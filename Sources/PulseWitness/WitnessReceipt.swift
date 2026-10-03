@@ -5,6 +5,8 @@ import PulseCore
 ///
 /// Invariant: Distinguishes what is directly observed or verified from what is
 /// merely claimed or unknown.
+/// Crucial distinction: EXECUTED != VERIFIED. An execution that returns an exit code
+/// is EXECUTED; only corroborating empirical proof makes it VERIFIED.
 public enum EvidenceState: String, Sendable, Codable, Equatable, CustomStringConvertible {
     case observed = "OBSERVED"
     case executed = "EXECUTED"
@@ -17,7 +19,9 @@ public enum EvidenceState: String, Sendable, Codable, Equatable, CustomStringCon
 
 /// Structured receipt for an executed capability or interaction proof.
 ///
-/// Invariant: Raw sensitive user payloads (text, diffs, credentials) are omitted by default.
+/// Invariants:
+/// - Raw sensitive user payloads (text, diffs, credentials) are strictly omitted.
+/// - Contains only execution metadata, durations, proof status, and non-sensitive summaries.
 public struct WitnessReceipt: Sendable, Codable, Equatable {
     public let runID: UUID
     public let parentRunID: UUID?
@@ -26,8 +30,19 @@ public struct WitnessReceipt: Sendable, Codable, Equatable {
     public let capabilityID: String
     public let targetMachine: String
     public let evidenceState: EvidenceState
+    public let outcome: PulseTerminalOutcome?
     public let durationMilliseconds: Double
     public let summary: String
+
+    /// Distinct proof classification: EXECUTED != VERIFIED
+    public var isVerified: Bool {
+        evidenceState == .verified
+    }
+
+    /// Whether this receipt merely records execution without independent verification.
+    public var isExecutedOnly: Bool {
+        evidenceState == .executed
+    }
 
     public init(
         runID: UUID = UUID(),
@@ -37,6 +52,7 @@ public struct WitnessReceipt: Sendable, Codable, Equatable {
         capabilityID: String,
         targetMachine: String,
         evidenceState: EvidenceState,
+        outcome: PulseTerminalOutcome? = nil,
         durationMilliseconds: Double,
         summary: String
     ) {
@@ -47,6 +63,7 @@ public struct WitnessReceipt: Sendable, Codable, Equatable {
         self.capabilityID = capabilityID
         self.targetMachine = targetMachine
         self.evidenceState = evidenceState
+        self.outcome = outcome
         self.durationMilliseconds = durationMilliseconds
         self.summary = summary
     }
@@ -58,7 +75,7 @@ public protocol WitnessRecording: Sendable {
     func latestReceipts(limit: Int) -> [WitnessReceipt]
 }
 
-/// In-memory transient receipt store for Phase 0/1 bootstrap.
+/// In-memory transient receipt store for DEX//PULSE.
 public final class MemoryWitnessStore: WitnessRecording, @unchecked Sendable {
     private let lock = NSLock()
     private var receipts: [WitnessReceipt] = []

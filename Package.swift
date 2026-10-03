@@ -87,7 +87,7 @@ let package = Package(
         // Transient overlay window, Carbon global hotkey, and input coordination
         .target(
             name: "PulseInteraction",
-            dependencies: ["PulseCore", "PulseVisuals"],
+            dependencies: ["PulseCore", "PulseLens", "PulseVisuals"],
             path: "Sources/PulseInteraction"
         ),
         

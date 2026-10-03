@@ -7,15 +7,15 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 7,
-  "last_updated": "2026-10-03T02:00:00Z",
+  "state_revision": 8,
+  "last_updated": "2026-10-03T02:10:00Z",
   "current_baseline": {
-    "identity": "Phase 2 Lens context acquisition",
-    "state": "active-lens-verified",
-    "last_verified": "2026-10-03T02:00:00Z"
+    "identity": "Phase 3 Semantic State Machine",
+    "state": "active-state-machine-verified",
+    "last_verified": "2026-10-03T02:10:00Z"
   },
   "scope_boundaries": [
-    "DEX//PULSE native macOS V1 through Phase 2 context acquisition and deterministic lazy precedence"
+    "DEX//PULSE native macOS V1 through Phase 3 semantic state machine, explicit run lifecycles, and result holds"
   ],
   "linked_parent_state": null
 }
@@ -35,11 +35,11 @@
 ## 2. Current Baseline
 
 - **Primary artifact:** `build/DEX_PULSE.app` and `~/.local/bin/dexpulse`
-- **Baseline state:** `active-lens-verified`
+- **Baseline state:** `active-state-machine-verified`
 - **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 4 test suites.
 - **Active default user route:** Installed at `~/Applications/DEX_PULSE.app` with CLI `~/.local/bin/dexpulse`.
 - **Delivery state:** Local native build and user-install verified on MacBook Air M1.
-- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 28 unit tests, 51 verifier checks, live native probes on macOS).
+- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 34 unit tests, 73 verifier checks, live native probes on macOS).
 
 ## 3. Artifact Contract
 
@@ -97,6 +97,22 @@ The project must produce a native Apple Silicon macOS application whose V1 verti
 - **Scope:** Installation and V1 core path.
 - **Authority:** Explicit user decision.
 - **Validation method:** Zero third-party packages; pure native Swift/AppKit/Carbon/Metal stack verified.
+- **Status:** active
+
+### INV-007 — State machine causal convergence
+- **State:** `verified-local`
+- **Rule:** Cancellation or dismissal from any transient state (PULSE, LENS, VEIL, ATTUNE, STRAND, FORK, DISPATCH, WEAVE, RETURN, WITNESS, RESOLVE, FRAY, SEVER) must deterministically converge to QUIET without leaving stranded states.
+- **Scope:** All state transitions and run dismissals.
+- **Authority:** Explicit architecture rule (INTERACTION_MODEL.md).
+- **Validation method:** Automated test suite and headless verifier test cancel() across all 13 transient states, asserting 100% convergence to QUIET and run outcome .cancelled.
+- **Status:** active
+
+### INV-008 — Stale completion protection
+- **State:** `verified-local`
+- **Rule:** Async completions matching older generation tokens or inactive runIDs must be discarded without mutating machine state or reviving a finished run.
+- **Scope:** Asynchronous capability dispatch, late executor callbacks, and background worker completions.
+- **Authority:** Explicit architecture rule (MASTER_IMPLEMENTATION_PLAN.md).
+- **Validation method:** Automated unit tests and headless verifier assert rejection of mismatched runID, mismatched generation token, and late callback after cancellation with staleCallbackRejected.
 - **Status:** active
 
 ## 5. Verified Working Behavior
@@ -162,20 +178,29 @@ None identified for the Phase 0/1/2 scope.
 | VER-012 | Visual fixture integrity | verified-local | All 4 original MP4s and 4 contact sheets match SHA256SUMS.txt | `scripts/verify_fixtures.sh` | `fixtures/visual-references/` | 2026-10-03 | fixture changes |
 | VER-013 | Phase 2 Lens context acquisition & lazy precedence | verified-local | 5-tier precedence with lazy halting, coordinate mapping, secure blocking, type refiners, stale token validation; Tier 1 Finder single/multi file selection PASS; focus non-theft PASS | `PulseLensTests` (15/15) + `PulseVerification` (51/51) + live native probes | `Sources/PulseLens/` | 2026-10-03 | Lens changes |
 | VER-014 | Synthetic AX fixture app | verified-local | Native executable with 8 fixture control classes and --focus-secure | `PulseLensFixtureApp --inspect` + live probe | `Sources/PulseLensFixtureApp/` | 2026-10-03 | test fixture changes |
+| VER-015 | Phase 3 Semantic State Machine & Explicit Run Lifecycle | verified-local | 15-state semantic loop, PulseRun tracking with generation tokens, Result hold semantics, stale async callback rejection, and clean cancellation convergence (INV-007, INV-008) | `PulseCoreTests` (12) + `PulseVerification` (73/73) + `dexpulse doctor` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
 | INV-001 | DexDictate retains priority | requested | Partial Phase 0/1: no trigger collision, clipboard/focus preserved. Full coexistence matrix unverified | Concurrent runtime matrix (Phase 11) | `build/DEX_PULSE.app` (partial) | 2026-10-03 | capture/input/coexistence changes |
 | INV-002 | No destructive V1 executor | verified-local | Destructive future cap blocked | `PulsePolicy` + `PulseVerification` | `PulseKit` | 2026-10-03 | Pack/policy changes |
 | INV-003 | Lens precedence is deterministic & lazy | verified-local | Locked order: Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5; stops at winning tier; zero clipboard mutation; zero focus theft | `LensResolver` spy tests & live Fixture/TextEdit/Terminal/Brave/Finder probes | `PulseLens` | 2026-10-03 | Lens changes |
 | INV-005 | Strand visuals match fixtures | requested | Reference fixtures intact. Metal Strand renderer not yet implemented (Phase 6) | Golden comparison against reference videos (Phase 6) | none (fixtures only) | 2026-10-03 | renderer/material changes |
 | INV-006 | Core runtime independence | verified-local | 0 external packages | `Package.swift` inspection | package graph | 2026-10-03 | dependency changes |
+| INV-007 | State machine causal convergence | verified-local | Cancellation from any transient state strictly reaches QUIET without stranded states | Automated test across 13 transient states in `PulseCoreTests` + `PulseVerification` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
+| INV-008 | Stale completion protection | verified-local | Outdated runID or generationToken rejected; late callbacks cannot mutate state or resurrect runs | `PulseCoreTests` (stale callback rejection) + `PulseVerification` | `Sources/PulseCore/` | 2026-10-03 | Async execution / state changes |
 
 ## 12. Current Change Scope and Impact Radius
 
 - **Allowed to change:** Package foundation, AppKit shell, interaction, verification, build scripts, tests.
 - **Must remain unchanged:** Supplied original reference video bytes; locked user decisions; clean-room boundary.
 - **Mandatory checks:** `make check`, `make app`, `make install-user`, `scripts/validate_planning_source.sh`, `scripts/verify_fixtures.sh`.
-- **Repair class:** Phase 2 Lens context acquisition.
+- **Repair class:** Phase 3 Semantic State Machine.
 
 ## 13. Compact Revision Log
+
+### Revision 8 — 2026-10-03
+
+- **Artifact/source identity:** Phase 3 Semantic State Machine (`branch: phase-03-state-machine`)
+- **State deltas:** Implemented full 15-state semantic state graph in `Sources/PulseCore/PulseState.swift` (`QUIET`, `PULSE`, `LENS`, `VEIL`, `ATTUNE`, `STRAND`, `FORK`, `DISPATCH`, `WEAVE`, `RETURN`, `WITNESS`, `RESOLVE`, `RECEDE`, `FRAY`, `SEVER`). Defined explicit execution run model (`PulseRun`) with unique `runID`, parent linkage, timestamps, generation tokens, and unambiguous terminal outcome classifications (`succeeded`, `cancelled`, `blocked`, `unavailable`, `timedOut`, `failed`, `interrupted`, `unknown`). Created `PulseResultObject` conforming to `PulseObject` with memory-only inspectable Result holds that pause automatic recede. Implemented thread-safe `PulseStateMachine` enforcing stale async callback rejection (INV-008) and deterministic cancellation convergence to `QUIET` across all 13 transient states (INV-007). Updated `DebugPulseOverlayController` to transition `QUIET -> PULSE -> LENS -> VEIL -> RECEDE -> QUIET` with atomic context envelope acquisition. Enhanced `WitnessReceipt` with proof state distinction (`EXECUTED != VERIFIED`) and sensitive payload exclusion.
+- **New evidence:** All 34 unit tests passed across 4 test suites; `PulseVerification` passed 73/73 headless assertions; `dexpulse doctor` verified Phase 3 lifecycle and state engine readiness; `make check` passed 6/6 verification stages cleanly; `make app` built and signed release bundle.
 
 ### Revision 7 — 2026-10-03
 

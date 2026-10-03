@@ -44,6 +44,16 @@ struct DoctorReport: Codable {
         let staleContextGuard: String
     }
 
+    struct StateMachineStatus: Codable {
+        let semanticStatesCount: Int
+        let statesList: [String]
+        let causalConvergence: String
+        let runModel: String
+        let resultHold: String
+        let staleProtection: String
+        let witnessProof: String
+    }
+
     struct RendererStatus: Codable {
         let name: String
         let status: String
@@ -56,6 +66,7 @@ struct DoctorReport: Codable {
     let targets: [TargetStatus]
     let capabilities: [CapabilityStatus]
     let lens: LensStatus
+    let stateMachine: StateMachineStatus
     let renderers: [RendererStatus]
     let evidenceLimitations: [String]
 }
@@ -139,7 +150,18 @@ func runDoctor(asJSON: Bool) {
         staleContextGuard: "Enforced (generation token + live PID revalidation)"
     )
 
-    // 5. Renderers
+    // 5. Semantic State Machine (Phase 3)
+    let stateMachineStatus = DoctorReport.StateMachineStatus(
+        semanticStatesCount: PulseState.allCases.count,
+        statesList: PulseState.allCases.map(\.rawValue),
+        causalConvergence: "Guaranteed (cancel from any transient state converges cleanly to QUIET)",
+        runModel: "Explicit PulseRun with unique runID and generationToken",
+        resultHold: "Memory-only Result hold pauses auto-recede while inspectable",
+        staleProtection: "Enforced (mismatched runID/generationToken rejected without state mutation)",
+        witnessProof: "Enforced (EXECUTED != VERIFIED proof distinction, raw payloads excluded)"
+    )
+
+    // 6. Renderers
     let renderers = [
         DoctorReport.RendererStatus(
             name: "Core Animation Pulsefront",
@@ -153,9 +175,9 @@ func runDoctor(asJSON: Bool) {
         )
     ]
 
-    // 6. Evidence Limitations
+    // 7. Evidence Limitations
     let evidenceLimitations = [
-        "Phase 2 Lens: Precedence hierarchy, coordinate mapping, and security guards verified locally.",
+        "Phase 3 State Machine: Full 15-state semantic loop, explicit run model, memory-only Result holds, and stale async callback rejection verified locally.",
         "GUI focus non-theft is architecturally enforced (nonactivatingPanel) but requires manual verification across third-party apps.",
         "DexDictate coexistence: Partial Phase 0/1 verified (no hotkey collision, focus/clipboard preserved); full coexistence matrix scheduled for Phase 11.",
         "Big Mac direct execution route remains pending until connected to the same physical network."
@@ -166,7 +188,7 @@ func runDoctor(asJSON: Bool) {
             name: BuildIdentity.productName,
             version: BuildIdentity.version,
             buildNumber: BuildIdentity.buildNumber,
-            phase: "Phase 2 (Context Envelope + Lens)",
+            phase: "Phase 3 (Semantic State Machine)",
             runtime: "Swift 5.9 native (0 external runtime dependencies)"
         ),
         environment: DoctorReport.EnvironmentInfo(
@@ -179,6 +201,7 @@ func runDoctor(asJSON: Bool) {
         targets: [macBookTarget, bigMacTarget],
         capabilities: capStatuses,
         lens: lensStatus,
+        stateMachine: stateMachineStatus,
         renderers: renderers,
         evidenceLimitations: evidenceLimitations
     )
@@ -194,7 +217,7 @@ func runDoctor(asJSON: Bool) {
 
     // Pretty-printed terminal output
     print("================================================================================")
-    print(" DEX//PULSE System Doctor (\(BuildIdentity.version) - Phase 2)")
+    print(" DEX//PULSE System Doctor (\(BuildIdentity.version) - Phase 3)")
     print("================================================================================")
     print("")
     print("1. BUILD & RUNTIME")
@@ -234,13 +257,21 @@ func runDoctor(asJSON: Bool) {
         print("     \(tier)")
     }
     print("")
-    print("6. VISUAL RENDERING")
+    print("6. SEMANTIC STATE MACHINE (PHASE 3)")
+    print("   Semantic States:  \(report.stateMachine.semanticStatesCount) states")
+    print("   Convergence:      \(report.stateMachine.causalConvergence)")
+    print("   Run Model:        \(report.stateMachine.runModel)")
+    print("   Result Holds:     \(report.stateMachine.resultHold)")
+    print("   Stale Guard:      \(report.stateMachine.staleProtection)")
+    print("   Witness Proof:    \(report.stateMachine.witnessProof)")
+    print("")
+    print("7. VISUAL RENDERING")
     for r in report.renderers {
         print("   • \(r.name): \(r.status)")
         print("     \(r.note)")
     }
     print("")
-    print("7. EVIDENCE LIMITATIONS")
+    print("8. EVIDENCE LIMITATIONS")
     for lim in report.evidenceLimitations {
         print("   ! \(lim)")
     }

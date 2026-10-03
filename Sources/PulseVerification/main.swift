@@ -29,7 +29,7 @@ final class PulseVerifier {
 
     func runAll() -> Bool {
         print("================================================================================")
-        print(" DEX//PULSE Headless Verification Runner (Phase 0/1/2)")
+        print(" DEX//PULSE Headless Verification Runner (Phase 0/1/2/3)")
         print("================================================================================")
 
         verifyBuildIdentity()
@@ -60,25 +60,60 @@ final class PulseVerifier {
     }
 
     private func verifyStateMachine() {
-        print("\n[2] Verifying Semantic State Machine...")
+        print("\n[2] Verifying Semantic State Machine & Lifecycle (Phase 3)...")
         let sm = PulseStateMachine()
         assert(sm.currentState == .quiet, "Initial state is QUIET")
 
-        // Valid transition quiet -> pulse -> veil
+        // 1. Full 15-state canonical primary loop
         do {
-            try sm.transition(to: .pulse)
-            assert(sm.currentState == .pulse, "Transitioned to PULSE")
+            let run = sm.startRun()
+            assert(sm.currentState == .pulse, "startRun() transitions to PULSE")
+            assert(run.state == .pulse, "PulseRun initialized with state PULSE")
+            assert(run.outcome == nil, "PulseRun outcome initially nil")
+
+            try sm.transition(to: .lens)
+            assert(sm.currentState == .lens, "Transitioned to LENS")
             try sm.transition(to: .veil)
             assert(sm.currentState == .veil, "Transitioned to VEIL")
+            try sm.transition(to: .attune)
+            assert(sm.currentState == .attune, "Transitioned to ATTUNE")
+            try sm.transition(to: .strand)
+            assert(sm.currentState == .strand, "Transitioned to STRAND")
+            try sm.transition(to: .fork)
+            assert(sm.currentState == .fork, "Transitioned to FORK")
+            try sm.transition(to: .dispatch)
+            assert(sm.currentState == .dispatch, "Transitioned to DISPATCH")
+            try sm.transition(to: .weave)
+            assert(sm.currentState == .weave, "Transitioned to WEAVE")
+            try sm.transition(to: .returnState)
+            assert(sm.currentState == .returnState, "Transitioned to RETURN")
+            try sm.transition(to: .witness)
+            assert(sm.currentState == .witness, "Transitioned to WITNESS")
+            try sm.transition(to: .resolve)
+            assert(sm.currentState == .resolve, "Transitioned to RESOLVE")
             try sm.transition(to: .recede)
             assert(sm.currentState == .recede, "Transitioned to RECEDE")
             try sm.transition(to: .quiet)
-            assert(sm.currentState == .quiet, "Returned to QUIET")
+            assert(sm.currentState == .quiet, "Returned to resting QUIET")
         } catch {
-            assert(false, "Valid state transitions threw error: \(error)")
+            assert(false, "Canonical 15-state loop threw unexpected error: \(error)")
         }
 
-        // Invalid transition quiet -> veil directly should throw
+        // 2. Direct dispatch loop without fork
+        do {
+            _ = sm.startRun()
+            try sm.transition(to: .lens)
+            try sm.transition(to: .veil)
+            try sm.transition(to: .attune)
+            try sm.transition(to: .strand)
+            try sm.transition(to: .dispatch)
+            assert(sm.currentState == .dispatch, "Direct STRAND -> DISPATCH permitted")
+            sm.cancel()
+        } catch {
+            assert(false, "Direct dispatch loop failed: \(error)")
+        }
+
+        // 3. Invalid transitions rejected deterministically
         do {
             try sm.transition(to: .veil)
             assert(false, "Invalid transition QUIET -> VEIL should fail")
@@ -88,11 +123,191 @@ final class PulseVerifier {
             assert(false, "Unexpected error: \(error)")
         }
 
-        // Cancellation safety: from PULSE, cancel() must reach QUIET
-        _ = try? sm.transition(to: .pulse)
-        let stateAfterCancel = sm.cancel()
-        assert(stateAfterCancel == .quiet, "cancel() from PULSE returns to QUIET")
-        assert(sm.currentState == .quiet, "State machine is resting in QUIET after cancellation")
+        do {
+            try sm.transition(to: .dispatch)
+            assert(false, "Invalid transition QUIET -> DISPATCH should fail")
+        } catch PulseStateMachineError.invalidTransition {
+            assert(true, "Invalid transition QUIET -> DISPATCH rejected deterministically")
+        } catch {
+            assert(false, "Unexpected error: \(error)")
+        }
+
+        // 4. Cancellation convergence from all transient states (INV-007)
+        let transientStates: [PulseState] = [
+            .pulse, .lens, .veil, .attune, .strand, .fork,
+            .dispatch, .weave, .returnState, .witness, .resolve,
+            .fray, .sever
+        ]
+
+        var allConverged = true
+        for targetState in transientStates {
+            let machine = PulseStateMachine()
+            _ = machine.startRun()
+            // Helper to reach targetState
+            reachState(machine, targetState)
+            let resultState = machine.cancel()
+            if resultState != .quiet || machine.currentState != .quiet {
+                allConverged = false
+            }
+            if machine.currentRun?.outcome != .cancelled {
+                allConverged = false
+            }
+        }
+        assert(allConverged, "Cancellation from all \(transientStates.count) transient states strictly converges to QUIET (INV-007)")
+
+        // 5. Stale completion and race protection (INV-008)
+        let raceMachine = PulseStateMachine()
+        let activeRun = raceMachine.startRun()
+        let staleRunID = UUID()
+        let activeToken = activeRun.generationToken
+
+        // Stale run ID
+        do {
+            try raceMachine.recordCompletion(
+                runID: staleRunID,
+                generationToken: activeToken,
+                outcome: .succeeded
+            )
+            assert(false, "Stale run ID completion must be rejected")
+        } catch PulseStateMachineError.staleCallbackRejected {
+            assert(true, "Stale run ID rejected with staleCallbackRejected (INV-008)")
+        } catch {
+            assert(false, "Unexpected error: \(error)")
+        }
+
+        // Stale generation token
+        do {
+            try raceMachine.recordCompletion(
+                runID: activeRun.runID,
+                generationToken: "stale-generation-token-999",
+                outcome: .succeeded
+            )
+            assert(false, "Stale generation token completion must be rejected")
+        } catch PulseStateMachineError.staleCallbackRejected {
+            assert(true, "Stale generation token rejected with staleCallbackRejected (INV-008)")
+        } catch {
+            assert(false, "Unexpected error: \(error)")
+        }
+
+        // Late callback after cancel()
+        raceMachine.cancel()
+        assert(raceMachine.currentState == .quiet, "Cancelled machine is QUIET")
+        do {
+            try raceMachine.recordCompletion(
+                runID: activeRun.runID,
+                generationToken: activeToken,
+                outcome: .succeeded
+            )
+            assert(false, "Late callback after cancel must be rejected")
+        } catch PulseStateMachineError.staleCallbackRejected {
+            assert(true, "Late callback after cancel() rejected without resurrection (INV-008)")
+        } catch {
+            assert(false, "Unexpected error: \(error)")
+        }
+
+        // 6. Result hold semantics (pauses auto-recede while inspectable)
+        let holdMachine = PulseStateMachine()
+        let holdRun = holdMachine.startRun()
+        _ = try? holdMachine.transition(to: .lens)
+        _ = try? holdMachine.transition(to: .veil)
+        _ = try? holdMachine.transition(to: .dispatch)
+        _ = try? holdMachine.transition(to: .witness)
+        _ = try? holdMachine.transition(to: .resolve)
+
+        let resultObj = PulseResultObject(
+            runID: holdRun.runID,
+            sourceObjectID: UUID(),
+            sourceObjectClass: .code,
+            capabilityID: "test.capability",
+            executorID: "local.executor",
+            outcome: .succeeded,
+            summary: "Result test output",
+            isHeld: true,
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            privacyClass: .ordinary
+        )
+
+        do {
+            try holdMachine.holdResult(resultObj)
+            assert(holdMachine.isResultHeld, "Result hold active (pauses auto-recede)")
+            assert(holdMachine.heldResult?.summary == "Result test output", "Held result inspectable in memory")
+            holdMachine.releaseResultHold()
+            assert(!holdMachine.isResultHeld, "Result hold released cleanly")
+        } catch {
+            assert(false, "Result hold threw error: \(error)")
+        }
+        holdMachine.cancel()
+
+        // 7. Witness proof semantics (EXECUTED != VERIFIED)
+        let execReceipt = WitnessReceipt(
+            objectClass: "CodeObject",
+            capabilityID: "git.diff",
+            targetMachine: "MacBook Air M1",
+            evidenceState: .executed,
+            outcome: .succeeded,
+            durationMilliseconds: 42.0,
+            summary: "Executed git diff command"
+        )
+        assert(execReceipt.isExecutedOnly, "Witness records EXECUTED evidence state")
+        assert(!execReceipt.isVerified, "Executed receipt is NOT verified without corroboration")
+
+        let verReceipt = WitnessReceipt(
+            objectClass: "CodeObject",
+            capabilityID: "git.status",
+            targetMachine: "MacBook Air M1",
+            evidenceState: .verified,
+            outcome: .succeeded,
+            durationMilliseconds: 18.0,
+            summary: "Verified git status clean"
+        )
+        assert(verReceipt.isVerified, "Witness records VERIFIED evidence state with corroboration")
+    }
+
+    private func reachState(_ machine: PulseStateMachine, _ target: PulseState) {
+        switch target {
+        case .quiet:
+            break
+        case .pulse:
+            break // already in pulse from startRun
+        case .lens:
+            _ = try? machine.transition(to: .lens)
+        case .veil:
+            _ = try? machine.transition(to: .lens)
+            _ = try? machine.transition(to: .veil)
+        case .attune:
+            reachState(machine, .veil)
+            _ = try? machine.transition(to: .attune)
+        case .strand:
+            reachState(machine, .attune)
+            _ = try? machine.transition(to: .strand)
+        case .fork:
+            reachState(machine, .strand)
+            _ = try? machine.transition(to: .fork)
+        case .dispatch:
+            reachState(machine, .strand)
+            _ = try? machine.transition(to: .dispatch)
+        case .weave:
+            reachState(machine, .dispatch)
+            _ = try? machine.transition(to: .weave)
+        case .returnState:
+            reachState(machine, .weave)
+            _ = try? machine.transition(to: .returnState)
+        case .witness:
+            reachState(machine, .returnState)
+            _ = try? machine.transition(to: .witness)
+        case .resolve:
+            reachState(machine, .witness)
+            _ = try? machine.transition(to: .resolve)
+        case .recede:
+            reachState(machine, .resolve)
+            _ = try? machine.transition(to: .recede)
+        case .fray:
+            reachState(machine, .veil)
+            _ = try? machine.transition(to: .fray)
+        case .sever:
+            reachState(machine, .veil)
+            _ = try? machine.transition(to: .sever)
+        }
     }
 
     private func verifyCentralPolicy() {

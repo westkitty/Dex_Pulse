@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import PulseCore
+import PulseLens
 import PulseVisuals
 
 /// Non-activating borderless panel for Phase 0/1 debug Pulse overlay.
@@ -59,15 +60,16 @@ public final class DebugPulseOverlayController: NSObject {
 
     /// Presents the debug overlay at the designated point (or near mouse pointer).
     public func present(at screenPoint: CGPoint? = nil) {
-        do {
-            try stateMachine.transition(to: .pulse)
-        } catch {
-            // If already active or invalid transition, attempt clean cancel first
-            stateMachine.cancel()
-            _ = try? stateMachine.transition(to: .pulse)
-        }
-
         let mouseLocation = screenPoint ?? NSEvent.mouseLocation
+        let cgPoint = LensCoordinates.toCG(appKitPoint: mouseLocation)
+
+        // 1. Enter PULSE via explicit run initialization
+        _ = stateMachine.startRun()
+
+        // 2. Transition PULSE -> LENS and acquire context envelope atomically
+        _ = try? stateMachine.transition(to: .lens)
+        let envelope = LensResolver.acquireContextEnvelope(at: (x: Double(cgPoint.x), y: Double(cgPoint.y)))
+
         let size = PulseVisualsTheme.defaultOverlaySize
 
         // Center on mouse position, clamping to screen bounds
@@ -84,11 +86,11 @@ public final class DebugPulseOverlayController: NSObject {
 
         if window == nil {
             let win = DebugPulseOverlayWindow(contentRect: windowRect)
-            win.contentView = createContentView(bounds: NSRect(origin: .zero, size: size), originPoint: mouseLocation)
+            win.contentView = createContentView(bounds: NSRect(origin: .zero, size: size), originPoint: mouseLocation, envelope: envelope)
             self.window = win
         } else {
             window?.setFrame(windowRect, display: true)
-            window?.contentView = createContentView(bounds: NSRect(origin: .zero, size: size), originPoint: mouseLocation)
+            window?.contentView = createContentView(bounds: NSRect(origin: .zero, size: size), originPoint: mouseLocation, envelope: envelope)
         }
 
         guard let win = window else { return }
@@ -101,6 +103,7 @@ public final class DebugPulseOverlayController: NSObject {
             win.animator().alphaValue = 1.0
         }
 
+        // 3. Transition LENS -> VEIL once presented
         _ = try? stateMachine.transition(to: .veil)
 
         // Setup local Escape key monitoring
@@ -147,7 +150,7 @@ public final class DebugPulseOverlayController: NSObject {
         }
     }
 
-    private func createContentView(bounds: NSRect, originPoint: CGPoint) -> NSView {
+    private func createContentView(bounds: NSRect, originPoint: CGPoint, envelope: PulseContextEnvelope? = nil) -> NSView {
         let view = NSView(frame: bounds)
         view.wantsLayer = true
 
@@ -208,7 +211,14 @@ public final class DebugPulseOverlayController: NSObject {
         view.addSubview(stateLabel)
 
         // Subtitle / context description
-        let contextLabel = NSTextField(labelWithString: "Phase 0/1 Native Reflex Overlay")
+        let summaryText: String
+        if let primary = envelope?.primaryObject {
+            let desc = primary.summary.count > 28 ? String(primary.summary.prefix(25)) + "..." : primary.summary
+            summaryText = "Context: [\(primary.objectClass.rawValue)] \(desc)"
+        } else {
+            summaryText = "Phase 3 Semantic Reflex Overlay"
+        }
+        let contextLabel = NSTextField(labelWithString: summaryText)
         contextLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
         contextLabel.textColor = NSColor(
             red: t.textSecondary.r,
