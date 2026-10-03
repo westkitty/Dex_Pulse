@@ -7,12 +7,12 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 6,
-  "last_updated": "2026-10-03T01:40:00Z",
+  "state_revision": 7,
+  "last_updated": "2026-10-03T02:00:00Z",
   "current_baseline": {
     "identity": "Phase 2 Lens context acquisition",
     "state": "active-lens-verified",
-    "last_verified": "2026-10-03T01:40:00Z"
+    "last_verified": "2026-10-03T02:00:00Z"
   },
   "scope_boundaries": [
     "DEX//PULSE native macOS V1 through Phase 2 context acquisition and deterministic lazy precedence"
@@ -160,11 +160,11 @@ None identified for the Phase 0/1/2 scope.
 |---|---|---|---|---|---|---|---|
 | VER-001 | Planning package persists with canonical fixtures | verified | GitHub readback + raw fixture SHA-256 | Read governing files and re-hash remote fixture bytes | main@76e3560d4e6cc3604408f5f66e0ea8fc91d6964c | 2026-10-02T12:17:16Z | source-of-truth or fixture changes |
 | VER-012 | Visual fixture integrity | verified-local | All 4 original MP4s and 4 contact sheets match SHA256SUMS.txt | `scripts/verify_fixtures.sh` | `fixtures/visual-references/` | 2026-10-03 | fixture changes |
-| VER-013 | Phase 2 Lens context acquisition & lazy precedence | verified-local | 5-tier precedence with lazy halting, coordinate mapping, secure blocking, type refiners, stale token validation | `PulseLensTests` (15/15) + `PulseVerification` (51/51) + live native probes | `Sources/PulseLens/` | 2026-10-03 | Lens changes |
+| VER-013 | Phase 2 Lens context acquisition & lazy precedence | verified-local | 5-tier precedence with lazy halting, coordinate mapping, secure blocking, type refiners, stale token validation; Tier 1 Finder single/multi file selection PASS; focus non-theft PASS | `PulseLensTests` (15/15) + `PulseVerification` (51/51) + live native probes | `Sources/PulseLens/` | 2026-10-03 | Lens changes |
 | VER-014 | Synthetic AX fixture app | verified-local | Native executable with 8 fixture control classes and --focus-secure | `PulseLensFixtureApp --inspect` + live probe | `Sources/PulseLensFixtureApp/` | 2026-10-03 | test fixture changes |
 | INV-001 | DexDictate retains priority | requested | Partial Phase 0/1: no trigger collision, clipboard/focus preserved. Full coexistence matrix unverified | Concurrent runtime matrix (Phase 11) | `build/DEX_PULSE.app` (partial) | 2026-10-03 | capture/input/coexistence changes |
 | INV-002 | No destructive V1 executor | verified-local | Destructive future cap blocked | `PulsePolicy` + `PulseVerification` | `PulseKit` | 2026-10-03 | Pack/policy changes |
-| INV-003 | Lens precedence is deterministic & lazy | verified-local | Locked order: Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5; stops at winning tier; zero clipboard mutation | `LensResolver` spy tests & live Fixture/TextEdit/Terminal/Brave/Finder probes | `PulseLens` | 2026-10-03 | Lens changes |
+| INV-003 | Lens precedence is deterministic & lazy | verified-local | Locked order: Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5; stops at winning tier; zero clipboard mutation; zero focus theft | `LensResolver` spy tests & live Fixture/TextEdit/Terminal/Brave/Finder probes | `PulseLens` | 2026-10-03 | Lens changes |
 | INV-005 | Strand visuals match fixtures | requested | Reference fixtures intact. Metal Strand renderer not yet implemented (Phase 6) | Golden comparison against reference videos (Phase 6) | none (fixtures only) | 2026-10-03 | renderer/material changes |
 | INV-006 | Core runtime independence | verified-local | 0 external packages | `Package.swift` inspection | package graph | 2026-10-03 | dependency changes |
 
@@ -176,6 +176,12 @@ None identified for the Phase 0/1/2 scope.
 - **Repair class:** Phase 2 Lens context acquisition.
 
 ## 13. Compact Revision Log
+
+### Revision 7 — 2026-10-03
+
+- **Artifact/source identity:** Phase 2 acceptance evidence completion (`branch: phase-02-lens`)
+- **State deltas:** Enhanced `SelectedFileProvider` to inspect `AXSelectedRows` (Outline/Table/List views) and resolve macOS file-reference URLs (`(url as NSURL).filePathURL?.path`), enabling native Tier 1 `SelectedFileObject` acquisition for single and multiple selected files in Finder without AppleEvents or synthetic copy events. Conducted direct empirical focus-non-theft regression testing proving that Lens acquisition (`dexpulse probe`) never becomes frontmost and strictly preserves originating application PID and focused AX element across TextEdit, Brave Browser, and `PulseLensFixtureApp`.
+- **New evidence:** Real Finder selected-file acquisition verified live under Tier 1 (single file: 1 item `file_alpha.txt`, multiple files: 2 items `file_alpha.txt` and `file_beta.txt`); focus non-theft verified with 0 focus or element shifts across 3 live target applications. GitHub Actions CI run `37100618922` completed with `success` for previous tip `d178c67c5e7f5a413ae77b8ed54cfab2b342de6e`.
 
 ### Revision 6 — 2026-10-03
 

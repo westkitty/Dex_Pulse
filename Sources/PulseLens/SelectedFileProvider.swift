@@ -37,51 +37,36 @@ public struct SelectedFileProvider: LensAcquisitionProvider {
 
         var selectedPaths: [String] = []
 
-        // 1. Try kAXSelectedChildrenAttribute
-        var selectedChildrenRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(focusedElement, "AXSelectedChildren" as CFString, &selectedChildrenRef) == .success,
-           let children = selectedChildrenRef as? [AXUIElement] {
-            for child in children.prefix(50) {
-                AXTimeoutHelper.applyTimeout(to: child)
-                var urlRef: CFTypeRef?
-                if AXUIElementCopyAttributeValue(child, "AXURL" as CFString, &urlRef) == .success,
-                   let ref = urlRef {
-                    if let url = ref as? URL, url.isFileURL {
-                        selectedPaths.append(url.path)
-                    } else if let urlStr = ref as? String,
-                              let url = URL(string: urlStr), url.isFileURL {
-                        selectedPaths.append(url.path)
-                    }
-                } else {
-                    var filenameRef: CFTypeRef?
-                    if AXUIElementCopyAttributeValue(child, "AXFilenames" as CFString, &filenameRef) == .success,
-                       let filenames = filenameRef as? [String] {
-                        selectedPaths.append(contentsOf: filenames)
+        // 1. Try kAXSelectedRowsAttribute (List, Outline, Table views)
+        var selectedRowsRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(focusedElement, "AXSelectedRows" as CFString, &selectedRowsRef) == .success,
+           let rows = selectedRowsRef as? [AXUIElement] {
+            for row in rows.prefix(50) {
+                AXTimeoutHelper.applyTimeout(to: row)
+                if let path = findFilePathInTree(from: row) {
+                    selectedPaths.append(path)
+                }
+            }
+        }
+
+        // 2. Try kAXSelectedChildrenAttribute (Icon, Column, Desktop views)
+        if selectedPaths.isEmpty {
+            var selectedChildrenRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(focusedElement, "AXSelectedChildren" as CFString, &selectedChildrenRef) == .success,
+               let children = selectedChildrenRef as? [AXUIElement] {
+                for child in children.prefix(50) {
+                    AXTimeoutHelper.applyTimeout(to: child)
+                    if let path = findFilePathInTree(from: child) {
+                        selectedPaths.append(path)
                     }
                 }
             }
         }
 
-        // 2. Try kAXFilenamesAttribute directly on focused element
+        // 3. Try directly on focusedElement
         if selectedPaths.isEmpty {
-            var filenameRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(focusedElement, "AXFilenames" as CFString, &filenameRef) == .success,
-               let filenames = filenameRef as? [String] {
-                selectedPaths.append(contentsOf: filenames)
-            }
-        }
-
-        // 3. Try kAXURLAttribute directly
-        if selectedPaths.isEmpty {
-            var urlRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(focusedElement, "AXURL" as CFString, &urlRef) == .success,
-               let ref = urlRef {
-                if let url = ref as? URL, url.isFileURL {
-                    selectedPaths.append(url.path)
-                } else if let urlStr = ref as? String,
-                          let url = URL(string: urlStr), url.isFileURL {
-                    selectedPaths.append(url.path)
-                }
+            if let path = extractFilePath(from: focusedElement) {
+                selectedPaths.append(path)
             }
         }
 
@@ -108,5 +93,54 @@ public struct SelectedFileProvider: LensAcquisitionProvider {
             confidence: 1.0,
             acquisitionReason: "Explicit file selection in \(appName) (\(selectedPaths.count) items)"
         )
+    }
+
+    private func extractFilePath(from element: AXUIElement) -> String? {
+        AXTimeoutHelper.applyTimeout(to: element)
+        var urlRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXURL" as CFString, &urlRef) == .success,
+           let ref = urlRef {
+            let urlString: String?
+            if let u = ref as? URL {
+                urlString = u.absoluteString
+            } else if let s = ref as? String {
+                urlString = s
+            } else {
+                urlString = nil
+            }
+            if let s = urlString, let u = URL(string: s) {
+                if let resolved = (u as NSURL).filePathURL?.path {
+                    return resolved
+                } else if u.isFileURL {
+                    return u.path
+                }
+            }
+        }
+
+        var filenameRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXFilenames" as CFString, &filenameRef) == .success,
+           let filenames = filenameRef as? [String], let first = filenames.first {
+            return first
+        }
+
+        return nil
+    }
+
+    private func findFilePathInTree(from element: AXUIElement, depth: Int = 0) -> String? {
+        if let direct = extractFilePath(from: element) {
+            return direct
+        }
+        guard depth < 3 else { return nil }
+
+        var childrenRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+           let children = childrenRef as? [AXUIElement] {
+            for child in children.prefix(15) {
+                if let found = findFilePathInTree(from: child, depth: depth + 1) {
+                    return found
+                }
+            }
+        }
+        return nil
     }
 }
