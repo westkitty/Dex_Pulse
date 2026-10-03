@@ -7,7 +7,7 @@ import AppKit
 @testable import PulseCore
 @testable import PulseInteraction
 
-@Suite("Veil Interaction Engine — Phase 4 Geometry, Input, and Lifecycle")
+@Suite("Veil Interaction Engine — Phase 4 Geometry, Input, and Lifecycle", .serialized)
 struct VeilTests {
 
     // MARK: - 1. Geometry & Annular Model Tests

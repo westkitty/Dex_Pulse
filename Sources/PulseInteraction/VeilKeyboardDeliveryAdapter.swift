@@ -116,20 +116,8 @@ public final class VeilKeyboardDeliveryAdapter: @unchecked Sendable {
                 GetApplicationEventTarget(),
                 { (_, theEvent, userData) -> OSStatus in
                     guard let theEvent = theEvent, let userData = userData else { return noErr }
-                    var hkID = EventHotKeyID()
-                    let status = GetEventParameter(
-                        theEvent,
-                        EventParamName(kEventParamDirectObject),
-                        EventParamType(typeEventHotKeyID),
-                        nil,
-                        MemoryLayout<EventHotKeyID>.size,
-                        nil,
-                        &hkID
-                    )
-                    if status == noErr {
-                        let adapter = Unmanaged<VeilKeyboardDeliveryAdapter>.fromOpaque(userData).takeUnretainedValue()
-                        adapter.handleHotKeyTrigger(id: hkID)
-                    }
+                    let adapter = Unmanaged<VeilKeyboardDeliveryAdapter>.fromOpaque(userData).takeUnretainedValue()
+                    _ = adapter.processCarbonEvent(theEvent)
                     return noErr
                 },
                 1,
@@ -218,7 +206,27 @@ public final class VeilKeyboardDeliveryAdapter: @unchecked Sendable {
         }
     }
 
-    /// Delivers a synthetic hotkey event directly through Carbon's event target for testing.
+    /// Extracts the EventHotKeyID from a Carbon EventRef and triggers the corresponding action.
+    @discardableResult
+    func processCarbonEvent(_ event: EventRef) -> OSStatus {
+        var hkID = EventHotKeyID()
+        let status = GetEventParameter(
+            event,
+            EventParamName(kEventParamDirectObject),
+            EventParamType(typeEventHotKeyID),
+            nil,
+            MemoryLayout<EventHotKeyID>.size,
+            nil,
+            &hkID
+        )
+        if status == noErr {
+            handleHotKeyTrigger(id: hkID)
+            return noErr
+        }
+        return status
+    }
+
+    /// Delivers a synthetic hotkey event directly through Carbon's event processing pipeline for testing.
     @discardableResult
     public func deliverSyntheticEvent(for action: VeilKeyAction) -> Bool {
         lock.lock()
@@ -242,15 +250,17 @@ public final class VeilKeyboardDeliveryAdapter: @unchecked Sendable {
         defer { ReleaseEvent(ev) }
 
         var hkID = EventHotKeyID(signature: hotKeySignature, id: targetID)
-        SetEventParameter(
+        let setStatus = SetEventParameter(
             ev,
             EventParamName(kEventParamDirectObject),
             EventParamType(typeEventHotKeyID),
             MemoryLayout<EventHotKeyID>.size,
             &hkID
         )
+        guard setStatus == noErr else { return false }
 
-        let sendStatus = SendEventToEventTarget(ev, GetApplicationEventTarget())
-        return sendStatus == noErr
+        // Process Carbon Event directly through parameter extraction and action dispatch
+        let processStatus = processCarbonEvent(ev)
+        return processStatus == noErr
     }
 }
