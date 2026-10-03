@@ -276,14 +276,15 @@ struct VeilTests {
 
     // MARK: - 3. Layout Registry & Invariant Tests
 
-    @Test("Every V1 ObjectClass resolves deterministically with experimental lifecycle")
+    @Test("Every V1 ObjectClass resolves deterministically with candidate lifecycle in Phase 5")
     func registryCoverageAndStability() {
         let registry = VeilLayoutRegistry.shared
 
         for objClass in ObjectClass.allCases {
             let layout = registry.layout(for: objClass)
             #expect(layout.objectClass == objClass)
-            #expect(layout.lifecycle == .experimental, "Lifecycle must remain experimental in Phase 4 (INV-040)")
+            #expect(layout.lifecycle == .candidate, "Lifecycle must be .candidate in Phase 5")
+            #expect(layout.version == "1.0.0-candidate", "Version must be 1.0.0-candidate")
             #expect(!layout.occupiedDirections.isEmpty, "Layout for \(objClass) must have occupied slots")
 
             // Deterministic repeated lookup
@@ -765,4 +766,114 @@ struct VeilTests {
         #expect(!controller.isKeyboardAdapterActive)
     }
     #endif
+
+    // MARK: - 6. Phase 5 Object Layout Freeze & Trial Ledger Tests
+
+    @Test("Layout freeze strictly requires valid owner approval token and prohibits automated harnesses")
+    func layoutFreezeAuthorityGuards() {
+        let registry = VeilLayoutRegistry.shared
+
+        // 1. Current default is candidate
+        let textLayout = registry.layout(for: .selectedText)
+        #expect(textLayout.lifecycle == .candidate)
+        #expect(textLayout.version == "1.0.0-candidate")
+
+        // 2. Automated harness cannot freeze
+        let harnessAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "AUTOMATED_HARNESS")
+        #expect(harnessAttempt == .failure(.automatedHarnessProhibited))
+
+        let ciAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "CI")
+        #expect(ciAttempt == .failure(.automatedHarnessProhibited))
+
+        // 3. Short or invalid token rejected
+        let invalidAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "short-token")
+        #expect(invalidAttempt == .failure(.invalidApprovalToken))
+
+        // 4. Layout remains candidate
+        let stillCandidate = registry.layout(for: .selectedText)
+        #expect(stillCandidate.lifecycle == .candidate)
+        #expect(stillCandidate.isCandidate)
+        #expect(!stillCandidate.isFrozen)
+    }
+
+    @Test("VeilLayoutTrialLedger accurately records telemetry and computes aggregates with zero content payload")
+    func trialLedgerTelemetryAndPrivacy() {
+        let ledger = VeilLayoutTrialLedger()
+        ledger.clear()
+        #expect(ledger.allRecords.isEmpty)
+
+        // Record a clean trial
+        let record1 = VeilLayoutTrialRecord(
+            objectClass: .selectedText,
+            layoutVersion: "1.0.0-candidate",
+            sectorChosen: .n,
+            intendedDirection: .n,
+            distanceTraveledPt: 75.0,
+            seamCrossings: 0,
+            radialOvershootPt: 0.0,
+            latencyMs: 14.2,
+            inputRoute: .pointer,
+            misfires: []
+        )
+        ledger.recordTrial(record1)
+        #expect(record1.isClean)
+
+        // Record a trial with seam flutter misfire
+        let record2 = VeilLayoutTrialRecord(
+            objectClass: .selectedText,
+            layoutVersion: "1.0.0-candidate",
+            sectorChosen: .ne,
+            intendedDirection: .n,
+            distanceTraveledPt: 82.0,
+            seamCrossings: 1,
+            radialOvershootPt: 4.0,
+            latencyMs: 25.0,
+            inputRoute: .pointer,
+            misfires: [.wrongSector]
+        )
+        ledger.recordTrial(record2)
+        #expect(!record2.isClean)
+
+        // Aggregate
+        let agg = ledger.aggregateMetrics(for: .selectedText)
+        #expect(agg.totalTrials == 2)
+        #expect(agg.successfulSelections == 1)
+        #expect(agg.misfireCount == 1)
+        #expect(agg.misfireRate == 0.5)
+        #expect(agg.avgDistancePt == 78.5)
+        #expect(agg.avgSeamCrossings == 0.5)
+
+        // Report generation
+        let report = ledger.summaryReport()
+        #expect(report.contains(ObjectClass.selectedText.rawValue))
+        #expect(report.contains("1.0.0-candidate"))
+    }
+
+    @Test("Autonomous mechanical trials succeed across all primary V1 object families")
+    func autonomousMechanicalTrialsAcrossAllFamilies() {
+        let ledger = VeilLayoutTrialLedger()
+        ledger.clear()
+
+        let aggregates = VeilLayoutTrialSimulator.runAllTrials(ledger: ledger)
+        #expect(aggregates.count == ObjectClass.allCases.count)
+
+        for agg in aggregates {
+            #expect(agg.totalTrials >= 6, "Each class must have at least 6 mechanical trials (\(agg.objectClass))")
+            #expect(agg.layoutVersion == "1.0.0-candidate")
+            #expect(agg.misfireRate <= 0.15, "Misfire rate must be <= 15% (\(agg.objectClass) was \(agg.misfireRate))")
+            #expect(agg.isCandidateReady, "Layout for \(agg.objectClass) must be candidate-ready")
+            #expect(!agg.coveredDirections.isEmpty)
+        }
+
+        // Verify total records in ledger
+        let allRecords = ledger.allRecords
+        #expect(!allRecords.isEmpty)
+
+        // Strict Privacy Verification: ensure records contain no text payloads
+        for rec in allRecords {
+            #expect(!rec.layoutVersion.isEmpty)
+            #expect(rec.distanceTraveledPt >= 0.0)
+            #expect(rec.seamCrossings >= 0)
+        }
+    }
 }

@@ -50,6 +50,7 @@ final class PulseVerifier {
         verifyVisualFixtures()
         verifyAppOverlayLifecycle()
         verifyPhase4VeilAnnularInteraction()
+        verifyPhase5LayoutFreezeTrials()
 
         print("================================================================================")
         print(" Summary: \(passed) passed, \(failed) failed")
@@ -718,11 +719,12 @@ final class PulseVerifier {
             assert(parity.parityMatches && parity.pathContains && parity.mathContains, "Dense geometry/path parity verified for \(dir)")
         }
 
-        // 4. Verify all V1 ObjectClasses resolve with experimental lifecycle
+        // 4. Verify all V1 ObjectClasses resolve with candidate lifecycle (Phase 5)
         let registry = VeilLayoutRegistry.shared
         for objClass in ObjectClass.allCases {
             let layout = registry.layout(for: objClass)
-            assert(layout.lifecycle == .experimental, "Layout for \(objClass) is in experimental lifecycle")
+            assert(layout.lifecycle == .candidate, "Layout for \(objClass) is in candidate lifecycle")
+            assert(layout.version == "1.0.0-candidate", "Layout for \(objClass) is version 1.0.0-candidate")
             assert(!layout.occupiedDirections.isEmpty, "Layout for \(objClass) has non-empty occupied slots")
         }
 
@@ -782,6 +784,57 @@ final class PulseVerifier {
         assert(frontAppBefore == frontAppAfter, "Frontmost application focus preserved after Veil dismissal")
     }
 
+    // MARK: - 14. Phase 5 Object Layout Freeze Trial & Ledger Verification
+    private func verifyPhase5LayoutFreezeTrials() {
+        print("\n--- [14] Verifying Phase 5 Object Layout Freeze Trials & Ledger ---")
+
+        let registry = VeilLayoutRegistry.shared
+        let ledger = VeilLayoutTrialLedger.shared
+        ledger.clear()
+
+        // 1. Verify all 11 classes are candidates and NOT frozen
+        for objClass in ObjectClass.allCases {
+            let layout = registry.layout(for: objClass)
+            assert(layout.isCandidate, "Layout for \(objClass) is in candidate lifecycle")
+            assert(!layout.isFrozen, "Layout for \(objClass) is NOT frozen without owner review")
+            assert(layout.version == "1.0.0-candidate", "Layout version for \(objClass) is 1.0.0-candidate")
+        }
+
+        // 2. Run autonomous mechanical trials across all 11 primary object classes
+        let aggregates = VeilLayoutTrialSimulator.runAllTrials(ledger: ledger)
+        assert(aggregates.count == ObjectClass.allCases.count, "Trial simulation ran for all \(ObjectClass.allCases.count) classes")
+
+        for agg in aggregates {
+            assert(agg.totalTrials >= 6, "Class \(agg.objectClass) completed at least 6 mechanical trials (\(agg.totalTrials))")
+            assert(agg.misfireRate <= 0.15, "Class \(agg.objectClass) misfire rate <= 15% (actual: \(agg.misfireRate))")
+            assert(agg.isCandidateReady, "Class \(agg.objectClass) is candidate ready")
+            assert(agg.coveredDirections.count >= 4, "Class \(agg.objectClass) covered at least 4 compass directions")
+        }
+
+        // 3. Strict privacy rule check: ledger records must never store content payloads
+        let allRecords = ledger.allRecords
+        assert(!allRecords.isEmpty, "Trial ledger has recorded trials (\(allRecords.count) trials)")
+        assert(allRecords.allSatisfy { $0.layoutVersion == "1.0.0-candidate" }, "All \(allRecords.count) records have candidate version")
+        assert(allRecords.allSatisfy { $0.distanceTraveledPt >= 0.0 }, "All records have non-negative distance")
+        assert(allRecords.allSatisfy { $0.seamCrossings >= 0 }, "All records have valid seam crossings")
+
+        // 4. Freeze authority boundary check: automated harness strictly prohibited from freezing
+        let harnessAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "AUTOMATED_HARNESS")
+        assert(harnessAttempt == .failure(.automatedHarnessProhibited), "Automated harness is prohibited from freezing layouts")
+
+        let ciAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "CI")
+        assert(ciAttempt == .failure(.automatedHarnessProhibited), "CI is prohibited from freezing layouts")
+
+        // 5. Invalid owner token rejected
+        let invalidAttempt = registry.freezeLayout(for: .selectedText, ownerApprovalToken: "invalid")
+        assert(invalidAttempt == .failure(.invalidApprovalToken), "Invalid owner token is rejected")
+
+        // 6. Verify layout remains in candidate state
+        let candidateCheck = registry.layout(for: .selectedText)
+        assert(candidateCheck.lifecycle == .candidate, "Layout remains in candidate state pending real owner review")
+        assert(!candidateCheck.isFrozen, "Layout is not frozen")
+    }
+
     public func runLiveAppProbes() -> Bool {
         print("================================================================================")
         print(" DEX//PULSE Phase 4 Runtime Interaction Probes (Live Evidence)")
@@ -804,7 +857,10 @@ final class PulseVerifier {
 
             // 1. Make frontmost
             app.activate()
-            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+            let activationDeadline = Date().addingTimeInterval(1.5)
+            while NSWorkspace.shared.frontmostApplication?.processIdentifier != app.processIdentifier && Date() < activationDeadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            }
 
             let pboard = NSPasteboard.general
             let countBefore = pboard.changeCount

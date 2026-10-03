@@ -3,13 +3,26 @@ import PulseCore
 
 /// Lifecycle stability tier of a Veil layout.
 ///
-/// Invariant: Must remain `.experimental` throughout Phase 4. Phase 5 owns the freeze gate.
+/// Phase 4: `.experimental`
+/// Phase 5: `.candidate` (version `1.0.0-candidate`)
+/// Post-Phase 5: `.frozen-v1` (explicit owner approval only)
 public enum VeilLayoutLifecycle: String, Sendable, Codable, Equatable, CustomStringConvertible {
     case experimental = "experimental"
     case candidate    = "candidate"
     case frozenV1     = "frozen-v1"
 
     public var description: String { rawValue }
+
+    public var isCandidate: Bool { self == .candidate }
+    public var isFrozen: Bool { self == .frozenV1 }
+    public var isExperimental: Bool { self == .experimental }
+}
+
+/// Errors occurring during layout freeze operations.
+public enum VeilLayoutFreezeError: Error, Sendable, Equatable {
+    case notCandidate(currentLifecycle: VeilLayoutLifecycle)
+    case invalidApprovalToken
+    case automatedHarnessProhibited
 }
 
 /// Visual and interactive presentation state of a Reflex slot.
@@ -83,15 +96,19 @@ public struct VeilObjectLayout: Sendable, Equatable {
 
     public init(
         objectClass: ObjectClass,
-        lifecycle: VeilLayoutLifecycle = .experimental,
+        lifecycle: VeilLayoutLifecycle = .candidate,
         slots: [CompassDirection: VeilReflexDescriptor],
-        version: String = "1.0.0-experimental"
+        version: String = "1.0.0-candidate"
     ) {
         self.objectClass = objectClass
         self.lifecycle = lifecycle
         self.slots = slots
         self.version = version
     }
+
+    public var isCandidate: Bool { lifecycle.isCandidate }
+    public var isFrozen: Bool { lifecycle.isFrozen }
+    public var isExperimental: Bool { lifecycle.isExperimental }
 
     /// Retrieves the reflex at a given compass direction if assigned.
     public func reflex(at direction: CompassDirection) -> VeilReflexDescriptor? {
@@ -162,6 +179,43 @@ public final class VeilLayoutRegistry: @unchecked Sendable {
             let lay = layouts[objClass] ?? createTextLayout(for: objClass)
             return lay.snapshotDescription
         }.joined(separator: "\n---\n")
+    }
+
+    /// Freezes a candidate layout into .frozenV1. Requires explicit owner approval token.
+    ///
+    /// Invariant: Automated test harnesses and autonomous agents are strictly PROHIBITED
+    /// from freezing layouts. Only explicit human owner approval can authorize freezing.
+    @discardableResult
+    public func freezeLayout(for objectClass: ObjectClass, ownerApprovalToken: String) -> Result<VeilObjectLayout, VeilLayoutFreezeError> {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let existing = layouts[objectClass] else {
+            return .failure(.notCandidate(currentLifecycle: .experimental))
+        }
+
+        guard existing.lifecycle == .candidate else {
+            return .failure(.notCandidate(currentLifecycle: existing.lifecycle))
+        }
+
+        // Automated test harness guard
+        if ownerApprovalToken == "AUTOMATED_HARNESS" || ownerApprovalToken == "CI" {
+            return .failure(.automatedHarnessProhibited)
+        }
+
+        // Require valid owner authorization token format (OWNER-FREEZE-...)
+        guard ownerApprovalToken.hasPrefix("OWNER-FREEZE-") && ownerApprovalToken.count >= 20 else {
+            return .failure(.invalidApprovalToken)
+        }
+
+        let frozen = VeilObjectLayout(
+            objectClass: objectClass,
+            lifecycle: .frozenV1,
+            slots: existing.slots,
+            version: "frozen-v1"
+        )
+        layouts[objectClass] = frozen
+        return .success(frozen)
     }
 
     // MARK: - Default Layout Registration (Authority: docs/OBJECT_LAYOUTS_V1.md)
