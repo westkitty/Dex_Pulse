@@ -103,9 +103,24 @@ public final class MemoryWitnessStore: WitnessRecording, @unchecked Sendable {
     }
 }
 
+extension WitnessReceipt {
+    /// Converts the receipt into dependency-safe binding metadata for PulseStateMachine cross-validation.
+    public var bindingMetadata: PulseReceiptBindingMetadata {
+        PulseReceiptBindingMetadata(
+            receiptID: receiptID,
+            runID: runID,
+            parentRunID: parentRunID,
+            objectClass: objectClass,
+            capabilityID: capabilityID,
+            targetID: targetMachine,
+            outcome: outcome
+        )
+    }
+}
+
 extension PulseStateMachine {
     /// Binds an executed or verified WitnessReceipt to the active run, validating runID and establishing identity.
     public func bindReceipt(_ receipt: WitnessReceipt) throws {
-        try bindReceipt(receiptID: receipt.receiptID, runID: receipt.runID)
+        try bindReceipt(receipt.bindingMetadata)
     }
 }

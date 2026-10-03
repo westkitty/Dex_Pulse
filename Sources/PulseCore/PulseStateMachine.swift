@@ -6,8 +6,11 @@ public enum PulseStateMachineError: Error, Equatable, CustomStringConvertible {
     case staleCallbackRejected(String)
     case noActiveRun
     case invalidStateForHold(PulseState)
+    case invalidStateForBinding(PulseState)
     case activeRunAlreadyExists(runID: UUID)
     case resultHoldActive(resultID: UUID)
+    case resultMismatch(reason: String)
+    case receiptMismatch(reason: String)
 
     public var description: String {
         switch self {
@@ -21,10 +24,16 @@ public enum PulseStateMachineError: Error, Equatable, CustomStringConvertible {
             return "No active Pulse execution run"
         case .invalidStateForHold(let state):
             return "Cannot hold result in non-resolved state [\(state)]"
+        case .invalidStateForBinding(let state):
+            return "Cannot bind envelope in state [\(state)]"
         case .activeRunAlreadyExists(let runID):
             return "Active run already exists [\(runID)]"
         case .resultHoldActive(let resultID):
             return "Cannot transition to RECEDE while result hold is active [\(resultID)]"
+        case .resultMismatch(let reason):
+            return "Result mismatch: \(reason)"
+        case .receiptMismatch(let reason):
+            return "Receipt mismatch: \(reason)"
         }
     }
 }
@@ -150,9 +159,14 @@ public final class PulseStateMachine: @unchecked Sendable {
     /// Binds a context envelope to the active run, verifying generation token and recording source object identity.
     public func bindEnvelope(_ envelope: PulseContextEnvelope) throws {
         lock.lock()
-        guard let current = _currentRun else {
+        guard let current = _currentRun, !current.isCompleted, current.outcome == nil else {
             lock.unlock()
             throw PulseStateMachineError.noActiveRun
+        }
+        guard _currentState == .pulse || _currentState == .lens else {
+            let state = _currentState
+            lock.unlock()
+            throw PulseStateMachineError.invalidStateForBinding(state)
         }
         guard envelope.generationToken == current.generationToken,
               envelope.generationToken == _activeGenerationToken else {
@@ -170,21 +184,75 @@ public final class PulseStateMachine: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// Binds an executed or verified receipt ID to the active run, validating runID and establishing identity.
-    public func bindReceipt(receiptID: UUID, runID: UUID) throws {
+    /// Binds an executed or verified receipt to the active run, validating runID and establishing identity.
+    public func bindReceipt(_ metadata: PulseReceiptBindingMetadata) throws {
         lock.lock()
-        guard let current = _currentRun else {
+        guard let current = _currentRun, _currentState != .quiet else {
             lock.unlock()
             throw PulseStateMachineError.noActiveRun
         }
-        guard runID == current.runID else {
+        guard metadata.runID == current.runID else {
             lock.unlock()
-            throw PulseStateMachineError.staleCallbackRejected(
-                "Receipt runID mismatch: expected \(current.runID), got \(runID)"
+            throw PulseStateMachineError.receiptMismatch(
+                reason: "Receipt runID mismatch: expected \(current.runID), got \(metadata.runID)"
             )
         }
-        _currentRun?.receiptID = receiptID
+        guard metadata.parentRunID == current.parentRunID else {
+            lock.unlock()
+            throw PulseStateMachineError.receiptMismatch(
+                reason: "Receipt parentRunID mismatch: expected \(String(describing: current.parentRunID)), got \(String(describing: metadata.parentRunID))"
+            )
+        }
+        if let runObjectClass = current.sourceObjectClass, let receiptObjectClass = metadata.objectClass {
+            guard runObjectClass.rawValue.caseInsensitiveCompare(receiptObjectClass) == .orderedSame else {
+                lock.unlock()
+                throw PulseStateMachineError.receiptMismatch(
+                    reason: "Receipt objectClass mismatch: expected \(runObjectClass.rawValue), got \(receiptObjectClass)"
+                )
+            }
+        }
+        if let runCap = current.capabilityID, let receiptCap = metadata.capabilityID {
+            guard runCap == receiptCap else {
+                lock.unlock()
+                throw PulseStateMachineError.receiptMismatch(
+                    reason: "Receipt capabilityID mismatch: expected \(runCap), got \(receiptCap)"
+                )
+            }
+        }
+        if let runTarget = current.targetID, let receiptTarget = metadata.targetID {
+            guard runTarget == receiptTarget else {
+                lock.unlock()
+                throw PulseStateMachineError.receiptMismatch(
+                    reason: "Receipt targetID mismatch: expected \(runTarget), got \(receiptTarget)"
+                )
+            }
+        }
+        if let runOutcome = current.outcome, let receiptOutcome = metadata.outcome {
+            guard runOutcome == receiptOutcome else {
+                lock.unlock()
+                throw PulseStateMachineError.receiptMismatch(
+                    reason: "Receipt outcome mismatch: run outcome is \(runOutcome), receipt outcome is \(receiptOutcome)"
+                )
+            }
+        }
+        _currentRun?.receiptID = metadata.receiptID
         lock.unlock()
+    }
+
+    /// Binds an executed or verified receipt ID to the active run, validating runID and establishing identity.
+    public func bindReceipt(receiptID: UUID, runID: UUID) throws {
+        try bindReceipt(PulseReceiptBindingMetadata(receiptID: receiptID, runID: runID))
+    }
+
+    /// Assigns capability and target descriptors to the active run during interaction/dispatch.
+    public func assignCapability(capabilityID: String, targetID: String? = nil) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let current = _currentRun, !current.isCompleted else {
+            throw PulseStateMachineError.noActiveRun
+        }
+        _currentRun?.capabilityID = capabilityID
+        _currentRun?.targetID = targetID
     }
 
     /// Explicitly transitions to a new state if permitted by the transition graph.
@@ -239,6 +307,46 @@ public final class PulseStateMachine: @unchecked Sendable {
         return true
     }
 
+    /// Internal unified validation path for Result Objects.
+    ///
+    /// For a run with bound context, a Result must match:
+    /// - `runID`
+    /// - `sourceObjectID`
+    /// - `sourceObjectClass`
+    /// - `contextGenerationToken`
+    /// A nil Result `contextGenerationToken` must NOT silently bypass generation validation when the run has a bound invocation generation.
+    private func validateResultIdentity(_ result: PulseResultObject, for run: PulseRun) throws {
+        guard result.runID == run.runID else {
+            throw PulseStateMachineError.resultMismatch(
+                reason: "Result runID mismatch: expected \(run.runID), received \(result.runID)"
+            )
+        }
+        if let srcID = run.sourceObjectID {
+            guard result.sourceObjectID == srcID else {
+                throw PulseStateMachineError.resultMismatch(
+                    reason: "Result sourceObjectID mismatch: expected \(srcID), received \(result.sourceObjectID)"
+                )
+            }
+        }
+        if let srcClass = run.sourceObjectClass {
+            guard result.sourceObjectClass == srcClass else {
+                throw PulseStateMachineError.resultMismatch(
+                    reason: "Result sourceObjectClass mismatch: expected \(srcClass), received \(result.sourceObjectClass)"
+                )
+            }
+        }
+        guard let token = result.contextGenerationToken, !token.isEmpty else {
+            throw PulseStateMachineError.resultMismatch(
+                reason: "Missing contextGenerationToken on Result Object for run with bound generation"
+            )
+        }
+        guard token == run.generationToken else {
+            throw PulseStateMachineError.resultMismatch(
+                reason: "Result contextGenerationToken mismatch: expected \(run.generationToken), received \(token)"
+            )
+        }
+    }
+
     /// Records asynchronous completion from an executor, enforcing stale-callback rejection and cross-validation.
     @discardableResult
     public func recordCompletion(
@@ -284,35 +392,11 @@ public final class PulseStateMachine: @unchecked Sendable {
 
         // Validate Result Object identity if supplied
         if let res = result {
-            guard res.runID == current.runID else {
+            do {
+                try validateResultIdentity(res, for: current)
+            } catch {
                 lock.unlock()
-                throw PulseStateMachineError.staleCallbackRejected(
-                    "Result runID mismatch: expected \(current.runID), received \(res.runID)"
-                )
-            }
-            if let srcID = current.sourceObjectID {
-                guard res.sourceObjectID == srcID else {
-                    lock.unlock()
-                    throw PulseStateMachineError.staleCallbackRejected(
-                        "Result sourceObjectID mismatch: expected \(srcID), received \(res.sourceObjectID)"
-                    )
-                }
-            }
-            if let srcClass = current.sourceObjectClass {
-                guard res.sourceObjectClass == srcClass else {
-                    lock.unlock()
-                    throw PulseStateMachineError.staleCallbackRejected(
-                        "Result sourceObjectClass mismatch: expected \(srcClass), received \(res.sourceObjectClass)"
-                    )
-                }
-            }
-            if let token = res.contextGenerationToken {
-                guard token == current.generationToken else {
-                    lock.unlock()
-                    throw PulseStateMachineError.staleCallbackRejected(
-                        "Result contextGenerationToken mismatch: expected \(current.generationToken), received \(token)"
-                    )
-                }
+                throw error
             }
             _currentRun?.resultID = res.id
             if res.isHeld {
@@ -345,19 +429,11 @@ public final class PulseStateMachine: @unchecked Sendable {
             lock.unlock()
             throw PulseStateMachineError.noActiveRun
         }
-        guard result.runID == current.runID else {
+        do {
+            try validateResultIdentity(result, for: current)
+        } catch {
             lock.unlock()
-            throw PulseStateMachineError.staleCallbackRejected(
-                "Result runID mismatch: expected \(current.runID), received \(result.runID)"
-            )
-        }
-        if let srcID = current.sourceObjectID {
-            guard result.sourceObjectID == srcID else {
-                lock.unlock()
-                throw PulseStateMachineError.staleCallbackRejected(
-                    "Result sourceObjectID mismatch: expected \(srcID), received \(result.sourceObjectID)"
-                )
-            }
+            throw error
         }
         var held = result
         held.isHeld = true
@@ -398,8 +474,9 @@ public final class PulseStateMachine: @unchecked Sendable {
     /// Cancels any transient interaction and guarantees clean convergence through RECEDE to QUIET.
     ///
     /// Truthful state transitions:
-    /// Step 1: Transitions to RECEDE and notifies observers while in RECEDE.
-    /// Step 2: Transitions to QUIET and notifies observers while in QUIET.
+    /// - For pre-execution states: transitions through RECEDE -> QUIET.
+    /// - For execution-active states (DISPATCH, WEAVE): transitions causally through SEVER -> RECEDE -> QUIET.
+    /// Observers see actual current state at every transition.
     @discardableResult
     public func cancel(reason: String? = nil) -> PulseState {
         lock.lock()
@@ -423,8 +500,36 @@ public final class PulseStateMachine: @unchecked Sendable {
         }
         _heldResult = nil
 
-        // If not already in RECEDE, step to RECEDE first
-        if oldState != .recede {
+        // If cancelling from execution-active states (DISPATCH or WEAVE), step through SEVER first
+        if oldState == .dispatch || oldState == .weave {
+            _currentState = .sever
+            _currentRun?.state = .sever
+            let handlers = stateChangeHandlers
+            lock.unlock()
+            for handler in handlers {
+                handler(oldState, .sever)
+            }
+            lock.lock()
+
+            // Next step from SEVER to RECEDE
+            _currentState = .recede
+            _currentRun?.state = .recede
+            let recedeHandlers = stateChangeHandlers
+            lock.unlock()
+            for handler in recedeHandlers {
+                handler(.sever, .recede)
+            }
+            lock.lock()
+        } else if oldState == .sever {
+            _currentState = .recede
+            _currentRun?.state = .recede
+            let handlers = stateChangeHandlers
+            lock.unlock()
+            for handler in handlers {
+                handler(.sever, .recede)
+            }
+            lock.lock()
+        } else if oldState != .recede {
             _currentState = .recede
             _currentRun?.state = .recede
             let handlers = stateChangeHandlers

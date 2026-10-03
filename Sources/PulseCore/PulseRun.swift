@@ -36,6 +36,35 @@ public enum PulseCancellationState: String, Sendable, Codable, Equatable, CaseIt
     public var description: String { rawValue }
 }
 
+/// Lightweight receipt binding metadata for dependency-safe run cross-validation.
+public struct PulseReceiptBindingMetadata: Sendable, Codable, Equatable {
+    public let receiptID: UUID
+    public let runID: UUID
+    public let parentRunID: UUID?
+    public let objectClass: String?
+    public let capabilityID: String?
+    public let targetID: String?
+    public let outcome: PulseTerminalOutcome?
+
+    public init(
+        receiptID: UUID,
+        runID: UUID,
+        parentRunID: UUID? = nil,
+        objectClass: String? = nil,
+        capabilityID: String? = nil,
+        targetID: String? = nil,
+        outcome: PulseTerminalOutcome? = nil
+    ) {
+        self.receiptID = receiptID
+        self.runID = runID
+        self.parentRunID = parentRunID
+        self.objectClass = objectClass
+        self.capabilityID = capabilityID
+        self.targetID = targetID
+        self.outcome = outcome
+    }
+}
+
 /// Explicit execution run representation tracking full lifecycle and provenance.
 public struct PulseRun: Sendable, Codable, Equatable, Identifiable {
     public let runID: UUID

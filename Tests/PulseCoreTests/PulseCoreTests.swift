@@ -668,6 +668,493 @@ struct PulseCoreTests {
         }
     }
 
+    // MARK: - Stage A Identity, Lifecycle & Termination Hardening Tests
+
+    @Test("Unified Result validation: recordCompletion rejects all 4 mismatch types")
+    func unifiedResultValidationRecordCompletionRejectsMismatches() throws {
+        let sm = PulseStateMachine()
+        let run = try sm.startRun()
+        try sm.transition(to: .lens)
+
+        let sourceID = UUID()
+        let primaryObj = SelectedTextObject(
+            id: sourceID,
+            text: "let x = 1",
+            provenance: ObjectProvenance(acquisitionMethod: "test")
+        )
+        let env = PulseContextEnvelope(generationToken: run.generationToken, primaryObject: primaryObj)
+        try sm.bindEnvelope(env)
+
+        try sm.transition(to: .veil)
+        try sm.transition(to: .attune)
+        try sm.transition(to: .strand)
+        try sm.transition(to: .dispatch)
+        try sm.transition(to: .weave)
+        try sm.transition(to: .returnState)
+        try sm.transition(to: .witness)
+        try sm.transition(to: .resolve)
+
+        // 1. Cross-run (wrong runID)
+        let wrongRunResult = PulseResultObject(
+            runID: UUID(),
+            sourceObjectID: sourceID,
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: run.generationToken
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded, result: wrongRunResult)
+        }
+
+        // 2. Cross-source (wrong sourceObjectID)
+        let wrongSourceResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: UUID(),
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: run.generationToken
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded, result: wrongSourceResult)
+        }
+
+        // 3. Wrong sourceObjectClass
+        let wrongClassResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: sourceID,
+            sourceObjectClass: .code,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: run.generationToken
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded, result: wrongClassResult)
+        }
+
+        // 4a. Stale token
+        let staleTokenResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: sourceID,
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: "stale-token-1234"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded, result: staleTokenResult)
+        }
+
+        // 4b. Missing token (nil)
+        let missingTokenResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: sourceID,
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: nil
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded, result: missingTokenResult)
+        }
+
+        sm.cancel()
+    }
+
+    @Test("Unified Result validation: holdResult rejects all 4 mismatch types")
+    func unifiedResultValidationHoldResultRejectsMismatches() throws {
+        let sm = PulseStateMachine()
+        let run = try sm.startRun()
+        try sm.transition(to: .lens)
+
+        let sourceID = UUID()
+        let primaryObj = SelectedTextObject(
+            id: sourceID,
+            text: "let x = 1",
+            provenance: ObjectProvenance(acquisitionMethod: "test")
+        )
+        let env = PulseContextEnvelope(generationToken: run.generationToken, primaryObject: primaryObj)
+        try sm.bindEnvelope(env)
+        try sm.transition(to: .veil)
+
+        // 1. Cross-run
+        let wrongRunResult = PulseResultObject(
+            runID: UUID(),
+            sourceObjectID: sourceID,
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: run.generationToken
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.holdResult(wrongRunResult)
+        }
+
+        // 2. Cross-source
+        let wrongSourceResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: UUID(),
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: run.generationToken
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.holdResult(wrongSourceResult)
+        }
+
+        // 3. Wrong sourceObjectClass
+        let wrongClassResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: sourceID,
+            sourceObjectClass: .code,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: run.generationToken
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.holdResult(wrongClassResult)
+        }
+
+        // 4a. Stale token
+        let staleTokenResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: sourceID,
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: "wrong-token"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.holdResult(staleTokenResult)
+        }
+
+        // 4b. Missing token (nil)
+        let missingTokenResult = PulseResultObject(
+            runID: run.runID,
+            sourceObjectID: sourceID,
+            sourceObjectClass: .selectedText,
+            capabilityID: "test.cap",
+            executorID: "local",
+            outcome: .succeeded,
+            summary: "summary",
+            provenance: ObjectProvenance(acquisitionMethod: "test"),
+            contextGenerationToken: nil
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.holdResult(missingTokenResult)
+        }
+
+        sm.cancel()
+    }
+
+    @Test("Envelope binding lifetime: rejects binding after completion, recession, or non-acquisition states")
+    func envelopeBindingLifetimeRestrictions() throws {
+        let sm = PulseStateMachine()
+        let run = try sm.startRun()
+        let validEnv = PulseContextEnvelope(generationToken: run.generationToken)
+
+        // Binding in PULSE is permitted
+        #expect(throws: Never.self) {
+            try sm.bindEnvelope(validEnv)
+        }
+
+        try sm.transition(to: .lens)
+        // Binding in LENS is permitted
+        #expect(throws: Never.self) {
+            try sm.bindEnvelope(validEnv)
+        }
+
+        try sm.transition(to: .veil)
+        // Binding in VEIL is rejected (past acquisition phase)
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindEnvelope(validEnv)
+        }
+
+        try sm.transition(to: .dispatch)
+        // Binding in DISPATCH is rejected
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindEnvelope(validEnv)
+        }
+
+        sm.cancel()
+        // Binding after cancellation / QUIET is rejected
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindEnvelope(validEnv)
+        }
+    }
+
+    @Test("Witness metadata binding: validates runID, parentRunID, objectClass, capabilityID, targetID, outcome")
+    func witnessMetadataBindingValidation() throws {
+        let sm = PulseStateMachine()
+        let parentID = UUID()
+        let run = try sm.startRun(parentRunID: parentID)
+        try sm.transition(to: .lens)
+
+        let sourceID = UUID()
+        let primaryObj = SelectedTextObject(
+            id: sourceID,
+            text: "let a = 0",
+            provenance: ObjectProvenance(acquisitionMethod: "test")
+        )
+        let env = PulseContextEnvelope(generationToken: run.generationToken, primaryObject: primaryObj)
+        try sm.bindEnvelope(env)
+
+        try sm.assignCapability(capabilityID: "git.commit", targetID: "macbook")
+
+        // 1. Wrong runID
+        let wrongRunReceipt = WitnessReceipt(
+            runID: UUID(),
+            parentRunID: parentID,
+            objectClass: "SelectedTextObject",
+            capabilityID: "git.commit",
+            targetMachine: "macbook",
+            evidenceState: .executed,
+            durationMilliseconds: 10.0,
+            summary: "ok"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindReceipt(wrongRunReceipt)
+        }
+
+        // 2. Wrong parentRunID
+        let wrongParentReceipt = WitnessReceipt(
+            runID: run.runID,
+            parentRunID: UUID(),
+            objectClass: "SelectedTextObject",
+            capabilityID: "git.commit",
+            targetMachine: "macbook",
+            evidenceState: .executed,
+            durationMilliseconds: 10.0,
+            summary: "ok"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindReceipt(wrongParentReceipt)
+        }
+
+        // 3. Wrong objectClass
+        let wrongClassReceipt = WitnessReceipt(
+            runID: run.runID,
+            parentRunID: parentID,
+            objectClass: "CodeSnippetObject",
+            capabilityID: "git.commit",
+            targetMachine: "macbook",
+            evidenceState: .executed,
+            durationMilliseconds: 10.0,
+            summary: "ok"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindReceipt(wrongClassReceipt)
+        }
+
+        // 4. Wrong capabilityID
+        let wrongCapReceipt = WitnessReceipt(
+            runID: run.runID,
+            parentRunID: parentID,
+            objectClass: "SelectedTextObject",
+            capabilityID: "ollama.prompt",
+            targetMachine: "macbook",
+            evidenceState: .executed,
+            durationMilliseconds: 10.0,
+            summary: "ok"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindReceipt(wrongCapReceipt)
+        }
+
+        // 5. Wrong targetID
+        let wrongTargetReceipt = WitnessReceipt(
+            runID: run.runID,
+            parentRunID: parentID,
+            objectClass: "SelectedTextObject",
+            capabilityID: "git.commit",
+            targetMachine: "server-remote",
+            evidenceState: .executed,
+            durationMilliseconds: 10.0,
+            summary: "ok"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindReceipt(wrongTargetReceipt)
+        }
+
+        // Complete the run with outcome .succeeded to test outcome validation
+        try sm.transition(to: .veil)
+        try sm.transition(to: .attune)
+        try sm.transition(to: .strand)
+        try sm.transition(to: .dispatch)
+        try sm.transition(to: .weave)
+        try sm.transition(to: .returnState)
+        try sm.transition(to: .witness)
+        try sm.transition(to: .resolve)
+        try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded)
+
+        // 6. Wrong outcome (contradicting run's outcome)
+        let wrongOutcomeReceipt = WitnessReceipt(
+            runID: run.runID,
+            parentRunID: parentID,
+            objectClass: "SelectedTextObject",
+            capabilityID: "git.commit",
+            targetMachine: "macbook",
+            evidenceState: .executed,
+            outcome: .failed,
+            durationMilliseconds: 10.0,
+            summary: "contradicting outcome"
+        )
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.bindReceipt(wrongOutcomeReceipt)
+        }
+
+        // 7. Valid matching receipt
+        let validReceipt = WitnessReceipt(
+            runID: run.runID,
+            parentRunID: parentID,
+            objectClass: "SelectedTextObject",
+            capabilityID: "git.commit",
+            targetMachine: "macbook",
+            evidenceState: .executed,
+            outcome: .succeeded,
+            durationMilliseconds: 10.0,
+            summary: "valid receipt"
+        )
+        #expect(throws: Never.self) {
+            try sm.bindReceipt(validReceipt)
+        }
+        #expect(sm.currentRun?.receiptID == validReceipt.receiptID)
+
+        sm.cancel()
+    }
+
+    @Test("Execution-phase cancellation: DISPATCH -> SEVER -> RECEDE -> QUIET with observer synchronization")
+    func executionPhaseCancellationThroughSeverFromDispatch() throws {
+        let sm = PulseStateMachine()
+        let run = try sm.startRun()
+        try sm.transition(to: .lens)
+        try sm.transition(to: .veil)
+        try sm.transition(to: .attune)
+        try sm.transition(to: .strand)
+        try sm.transition(to: .dispatch)
+
+        final class TransitionCollector: @unchecked Sendable {
+            private let lock = NSLock()
+            private var items: [(PulseState, PulseState, PulseState)] = []
+            func append(_ item: (PulseState, PulseState, PulseState)) {
+                lock.lock()
+                items.append(item)
+                lock.unlock()
+            }
+            var all: [(PulseState, PulseState, PulseState)] {
+                lock.lock()
+                defer { lock.unlock() }
+                return items
+            }
+        }
+
+        let collector = TransitionCollector()
+        sm.onStateChange { from, to in
+            collector.append((from, to, sm.currentState))
+        }
+
+        sm.requestCancellation(reason: "user_cancel_during_dispatch")
+        #expect(sm.currentRun?.cancellationState == .requested)
+        #expect(sm.currentRun?.cancellationRequestedAt != nil)
+
+        let finalState = sm.acknowledgeCancellation()
+        #expect(finalState == .quiet)
+        #expect(sm.currentState == .quiet)
+        #expect(sm.currentRun?.cancellationState == .acknowledged)
+        #expect(sm.currentRun?.cancellationAcknowledgedAt != nil)
+        #expect(sm.currentRun?.outcome == .cancelled)
+
+        let observedTransitions = collector.all
+        #expect(observedTransitions.count == 3)
+        #expect(observedTransitions[0] == (.dispatch, .sever, .sever))
+        #expect(observedTransitions[1] == (.sever, .recede, .recede))
+        #expect(observedTransitions[2] == (.recede, .quiet, .quiet))
+
+        // Late completion after cancellation is rejected
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded)
+        }
+    }
+
+    @Test("Execution-phase cancellation: WEAVE -> SEVER -> RECEDE -> QUIET with observer synchronization")
+    func executionPhaseCancellationThroughSeverFromWeave() throws {
+        let sm = PulseStateMachine()
+        let run = try sm.startRun()
+        try sm.transition(to: .lens)
+        try sm.transition(to: .veil)
+        try sm.transition(to: .attune)
+        try sm.transition(to: .strand)
+        try sm.transition(to: .dispatch)
+        try sm.transition(to: .weave)
+
+        final class TransitionCollector: @unchecked Sendable {
+            private let lock = NSLock()
+            private var items: [(PulseState, PulseState, PulseState)] = []
+            func append(_ item: (PulseState, PulseState, PulseState)) {
+                lock.lock()
+                items.append(item)
+                lock.unlock()
+            }
+            var all: [(PulseState, PulseState, PulseState)] {
+                lock.lock()
+                defer { lock.unlock() }
+                return items
+            }
+        }
+
+        let collector = TransitionCollector()
+        sm.onStateChange { from, to in
+            collector.append((from, to, sm.currentState))
+        }
+
+        sm.requestCancellation(reason: "user_cancel_during_weave")
+        #expect(sm.currentRun?.cancellationState == .requested)
+
+        let finalState = sm.acknowledgeCancellation()
+        #expect(finalState == .quiet)
+        #expect(sm.currentState == .quiet)
+        #expect(sm.currentRun?.outcome == .cancelled)
+
+        let observedTransitions = collector.all
+        #expect(observedTransitions.count == 3)
+        #expect(observedTransitions[0] == (.weave, .sever, .sever))
+        #expect(observedTransitions[1] == (.sever, .recede, .recede))
+        #expect(observedTransitions[2] == (.recede, .quiet, .quiet))
+
+        #expect(throws: PulseStateMachineError.self) {
+            try sm.recordCompletion(runID: run.runID, generationToken: run.generationToken, outcome: .succeeded)
+        }
+    }
+
     // MARK: - Evidence & Configuration Tests
 
     @Test("Witness structured receipt records proof state and excludes raw sensitive payloads")
