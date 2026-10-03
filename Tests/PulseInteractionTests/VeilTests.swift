@@ -943,4 +943,246 @@ struct VeilTests {
             #expect(onDisk == generatedDoc, "Disk review artifact must match VeilOwnerReviewGenerator output")
         }
     }
+
+    // MARK: - 8. Phase 5 Owner Trial System Tests
+
+    @Test("Owner trial mode defaults to OFF and strictly ignores invocations")
+    func ownerTrialModeDefaultsToOffAndIgnoresInvocations() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-off-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        #expect(!store.isTrialModeEnabled)
+        #expect(store.totalRealInvocations == 0)
+        #expect(store.allRecords.isEmpty)
+
+        let record = VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            initialArmedDirection: .n,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain"
+        )
+        let didRecord = store.recordTrial(record)
+        #expect(!didRecord)
+        #expect(store.totalRealInvocations == 0)
+    }
+
+    @Test("Owner trial store records operational telemetry when enabled")
+    func ownerTrialStoreRecordsCategoricalTelemetryWhenEnabled() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-on-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        store.setTrialModeEnabled(true)
+        #expect(store.isTrialModeEnabled)
+
+        let record = VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            initialArmedDirection: .ne,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain",
+            seamCrossingCount: 2,
+            maxRadialOvershootPt: 4.5,
+            elapsedSelectionMs: 32.1,
+            wasCancelled: false,
+            didEnterNested: false,
+            feedback: .unreviewed
+        )
+        let didRecord = store.recordTrial(record)
+        #expect(didRecord)
+        #expect(store.totalRealInvocations == 1)
+
+        let saved = store.allRecords.first
+        #expect(saved != nil)
+        #expect(saved?.objectClass == .selectedText)
+        #expect(saved?.layoutFamily == .text)
+        #expect(saved?.layoutVersion == "1.0.0-candidate")
+        #expect(saved?.inputRoute == .pointer)
+        #expect(saved?.initialArmedDirection == .ne)
+        #expect(saved?.finalSelectedDirection == .n)
+        #expect(saved?.selectedReflexID == "text.explain")
+        #expect(saved?.seamCrossingCount == 2)
+        #expect(saved?.maxRadialOvershootPt == 4.5)
+        #expect(saved?.elapsedSelectionMs == 32.1)
+        #expect(saved?.wasCancelled == false)
+        #expect(saved?.didEnterNested == false)
+        #expect(saved?.feedback == .unreviewed)
+    }
+
+    @Test("Owner trial store attributes per-class telemetry independently")
+    func ownerTrialStoreAttributesPerClassIndependently() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-classes-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        store.setTrialModeEnabled(true)
+
+        // Record 2 trials for .selectedText
+        store.recordTrial(VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain"
+        ))
+        store.recordTrial(VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .keyboard,
+            finalSelectedDirection: .s,
+            selectedReflexID: "text.copy"
+        ))
+
+        // Record 1 trial for .repository
+        store.recordTrial(VeilOwnerTrialRecord(
+            objectClass: .repository,
+            layoutFamily: .repoPath,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .w,
+            selectedReflexID: "repo.status"
+        ))
+
+        #expect(store.totalRealInvocations == 3)
+        #expect(store.records(for: .selectedText).count == 2)
+        #expect(store.records(for: .repository).count == 1)
+        #expect(store.records(for: .file).isEmpty)
+
+        let aggText = store.aggregateMetrics(for: .selectedText)
+        #expect(aggText.totalRealInvocations == 2)
+        #expect(aggText.pointerInvocations == 1)
+        #expect(aggText.keyboardInvocations == 1)
+        #expect(!aggText.meetsInvocationThreshold)
+        #expect(aggText.remainingGaps.contains { $0.contains("18 more") })
+
+        let aggRepo = store.aggregateMetrics(for: .repository)
+        #expect(aggRepo.totalRealInvocations == 1)
+        #expect(aggRepo.remainingGaps.contains { $0.contains("19 more") })
+
+        let aggFile = store.aggregateMetrics(for: .file)
+        #expect(aggFile.totalRealInvocations == 0)
+        #expect(aggFile.remainingGaps.contains { $0.contains("20 more") })
+    }
+
+    @Test("Synthetic simulations never mutate real owner store")
+    func syntheticSimulationsNeverMutateRealOwnerStore() {
+        let ledger = VeilLayoutTrialLedger()
+        ledger.clear()
+
+        _ = VeilLayoutTrialSimulator.runAllTrials(ledger: ledger)
+        #expect(ledger.syntheticTrialCount == 350)
+        #expect(ledger.realOwnerInvocationCount == 0)
+        #expect(VeilOwnerTrialStore.shared.totalRealInvocations == 0)
+    }
+
+    @Test("Owner trial store feedback updates last recorded trial")
+    func ownerTrialStoreFeedbackUpdatesLastRecord() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-feedback-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        store.setTrialModeEnabled(true)
+
+        // Without records, marking feedback returns false
+        #expect(!store.markLastFeedback(.good))
+
+        store.recordTrial(VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain",
+            feedback: .unreviewed
+        ))
+        #expect(store.allRecords.last?.feedback == .unreviewed)
+
+        #expect(store.markLastFeedback(.good))
+        #expect(store.allRecords.last?.feedback == .good)
+
+        #expect(store.markLastFeedback(.wrongDirection))
+        #expect(store.allRecords.last?.feedback == .wrongDirection)
+    }
+
+    @Test("Owner trial store reset clears only local trial evidence")
+    func ownerTrialStoreResetClearsOnlyLocalTrialEvidence() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-reset-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        store.setTrialModeEnabled(true)
+        store.recordTrial(VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain"
+        ))
+        #expect(store.totalRealInvocations == 1)
+
+        store.reset()
+        #expect(store.totalRealInvocations == 0)
+        #expect(store.allRecords.isEmpty)
+        #expect(store.isTrialModeEnabled, "Reset must preserve trial mode enabled state")
+    }
+
+    @Test("Owner trial store recovers gracefully from corrupted files")
+    func ownerTrialStoreRecoversGracefullyFromCorruptData() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-corrupt-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        try? "corrupted-unparseable-data".write(to: tempURL, atomically: true, encoding: .utf8)
+
+        let store = VeilOwnerTrialStore(fileURL: tempURL)
+        #expect(store.totalRealInvocations == 0)
+        #expect(!store.isTrialModeEnabled)
+    }
+
+    @Test("Owner trial store survives disk persistence and reload")
+    func ownerTrialStoreSchemaRoundtrip() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test-owner-trial-roundtrip-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let store1 = VeilOwnerTrialStore(fileURL: tempURL)
+        store1.setTrialModeEnabled(true)
+        store1.recordTrial(VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .keyboard,
+            finalSelectedDirection: .s,
+            selectedReflexID: "text.copy",
+            feedback: .good
+        ))
+
+        let store2 = VeilOwnerTrialStore(fileURL: tempURL)
+        #expect(store2.isTrialModeEnabled)
+        #expect(store2.totalRealInvocations == 1)
+        #expect(store2.allRecords.first?.objectClass == .selectedText)
+        #expect(store2.allRecords.first?.feedback == .good)
+    }
+
+    @Test("Owner feedback parses CLI string inputs reliably")
+    func ownerFeedbackParsing() {
+        #expect(VeilOwnerFeedback(cliString: "good") == .good)
+        #expect(VeilOwnerFeedback(cliString: "Good") == .good)
+        #expect(VeilOwnerFeedback(cliString: "misfire") == .misfire)
+        #expect(VeilOwnerFeedback(cliString: "wrong-direction") == .wrongDirection)
+        #expect(VeilOwnerFeedback(cliString: "wrong_direction") == .wrongDirection)
+        #expect(VeilOwnerFeedback(cliString: "wrongdirection") == .wrongDirection)
+        #expect(VeilOwnerFeedback(cliString: "missing-reflex") == .missingDesiredReflex)
+        #expect(VeilOwnerFeedback(cliString: "missing_desired_reflex") == .missingDesiredReflex)
+        #expect(VeilOwnerFeedback(cliString: "needs-more-use") == .needsMoreUse)
+        #expect(VeilOwnerFeedback(cliString: "unreviewed") == .unreviewed)
+        #expect(VeilOwnerFeedback(cliString: "invalid-flag") == nil)
+    }
 }

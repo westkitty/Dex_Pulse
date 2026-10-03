@@ -862,6 +862,162 @@ final class PulseVerifier {
         if let onDisk = try? String(contentsOfFile: reviewPath, encoding: .utf8) {
             assert(onDisk == generatedDoc, "Owner review artifact on disk matches VeilOwnerReviewGenerator")
         }
+
+        // 9. Owner Trial Store Invariants & Isolated Testing
+        assert(!VeilOwnerTrialStore.shared.isTrialModeEnabled, "Owner trial mode defaults to disabled (OFF)")
+        assert(VeilOwnerTrialStore.shared.totalRealInvocations == 0, "Shared owner trial store records exactly 0 real invocations prior to human trial")
+        assert(VeilOwnerTrialStore.shared.allRecords.isEmpty, "Shared owner trial store is completely empty")
+
+        let isoURL = FileManager.default.temporaryDirectory.appendingPathComponent("pulse-owner-trial-iso-\(UUID().uuidString).json")
+        let isoStore = VeilOwnerTrialStore(fileURL: isoURL)
+        assert(!isoStore.isTrialModeEnabled, "Isolated store initializes with trial mode OFF")
+        assert(isoStore.totalRealInvocations == 0, "Isolated store starts with 0 records")
+
+        // Recording while disabled is a strict no-op
+        let testRec1 = VeilOwnerTrialRecord(
+            objectClass: .selectedText,
+            layoutFamily: .text,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .pointer,
+            initialArmedDirection: .n,
+            finalSelectedDirection: .n,
+            selectedReflexID: "text.explain",
+            seamCrossingCount: 0,
+            maxRadialOvershootPt: 0.0,
+            elapsedSelectionMs: 15.0,
+            wasCancelled: false,
+            didEnterNested: false,
+            feedback: .unreviewed
+        )
+        let didRecordDisabled = isoStore.recordTrial(testRec1)
+        assert(!didRecordDisabled, "Recording a trial while trial mode is disabled returns false")
+        assert(isoStore.totalRealInvocations == 0, "No records recorded while trial mode is disabled")
+
+        // Enable trial mode
+        isoStore.setTrialModeEnabled(true)
+        assert(isoStore.isTrialModeEnabled, "Trial mode is now enabled on isolated store")
+        let didRecordEnabled = isoStore.recordTrial(testRec1)
+        assert(didRecordEnabled, "Recording a trial while trial mode is enabled returns true")
+        assert(isoStore.totalRealInvocations == 1, "Isolated store records exactly 1 trial")
+
+        // Record a second trial for a different class (.file)
+        let testRec2 = VeilOwnerTrialRecord(
+            objectClass: .file,
+            layoutFamily: .imageFile,
+            layoutVersion: "1.0.0-candidate",
+            inputRoute: .keyboard,
+            initialArmedDirection: nil,
+            finalSelectedDirection: nil,
+            selectedReflexID: nil,
+            seamCrossingCount: 1,
+            maxRadialOvershootPt: 3.5,
+            elapsedSelectionMs: 45.0,
+            wasCancelled: true,
+            didEnterNested: false,
+            feedback: .unreviewed
+        )
+        isoStore.recordTrial(testRec2)
+        assert(isoStore.totalRealInvocations == 2, "Isolated store records 2 total trials")
+
+        // Verify independent per-class attribution
+        let textRecs = isoStore.records(for: .selectedText)
+        let fileRecs = isoStore.records(for: .file)
+        let repoRecs = isoStore.records(for: .repository)
+        assert(textRecs.count == 1, "Exactly 1 record attributed to .selectedText")
+        assert(fileRecs.count == 1, "Exactly 1 record attributed to .file")
+        assert(repoRecs.isEmpty, "0 records attributed to uninvoked .repository")
+
+        // Verify feedback marking
+        assert(isoStore.markLastFeedback(.misfire), "Successfully marked feedback on last trial")
+        assert(isoStore.allRecords.last?.feedback == .misfire, "Last trial feedback updated to .misfire")
+
+        // Verify aggregated metrics
+        let aggText = isoStore.aggregateMetrics(for: .selectedText)
+        let aggFile = isoStore.aggregateMetrics(for: .file)
+        assert(aggText.totalRealInvocations == 1, "Aggregated total for .selectedText is 1")
+        assert(!aggText.meetsInvocationThreshold, ".selectedText does not meet 20-invocation threshold")
+        assert(aggText.remainingGaps.contains { $0.contains("19 more") }, "Gaps report remaining invocations needed")
+        assert(aggFile.feedbackBreakdown[.misfire] == 1, "Aggregated feedback for .file reflects misfire")
+
+        // Verify summary report and JSON generation
+        let summaryRep = isoStore.summaryReport()
+        let summaryJSON = isoStore.summaryJSON()
+        assert(summaryRep.contains(ObjectClass.selectedText.rawValue), "Summary report includes .selectedText")
+        assert(summaryJSON.contains("\"totalRealInvocations\" : 2"), "Summary JSON includes total invocations")
+
+        // Verify reset
+        isoStore.reset()
+        assert(isoStore.totalRealInvocations == 0, "Reset clears all local trial records")
+        assert(isoStore.isTrialModeEnabled, "Reset preserves trial mode enabled state")
+
+        // Verify corruption resilience
+        try? "not a valid json payload".write(to: isoURL, atomically: true, encoding: .utf8)
+        isoStore.reloadFromDisk()
+        assert(isoStore.totalRealInvocations == 0, "Corrupt file gracefully recovers to clean state")
+        try? FileManager.default.removeItem(at: isoURL)
+
+        // 10. Live Controller Owner Trial Smoke Proof (Isolated Test Store)
+        let smokeURL = FileManager.default.temporaryDirectory.appendingPathComponent("pulse-smoke-trial-\(UUID().uuidString).json")
+        let smokeStore = VeilOwnerTrialStore(fileURL: smokeURL)
+        let smokeSM = PulseStateMachine()
+        let smokeController = VeilInteractionController(stateMachine: smokeSM)
+        smokeController.trialStore = smokeStore
+
+        // Run A: Trial mode OFF -> present & dismiss -> 0 records
+        let envText = PulseContextEnvelope(
+            generationToken: "smoke-token-text",
+            primaryObject: SelectedTextObject(text: "smoke sample", provenance: ObjectProvenance(acquisitionMethod: "test")),
+            primaryReason: "selection",
+            primaryTier: 1
+        )
+        smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envText)
+        smokeController.dismiss()
+        assert(smokeStore.totalRealInvocations == 0, "Smoke run: 0 records while trial mode is OFF")
+
+        // Run B: Trial mode ON -> present & activate selection -> 1 record
+        smokeStore.setTrialModeEnabled(true)
+        smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envText)
+        smokeController.simulateActivation(direction: .n, choiceID: nil)
+        assert(smokeStore.totalRealInvocations == 1, "Smoke run: 1 record recorded on selection activation")
+        if let rec = smokeStore.allRecords.first {
+            assert(rec.objectClass == .selectedText, "Smoke record object class is .selectedText")
+            assert(rec.finalSelectedDirection == .n, "Smoke record direction is .n")
+            assert(!rec.wasCancelled, "Smoke record wasCancelled is false")
+            assert(rec.feedback == .unreviewed, "Smoke record feedback is initially .unreviewed")
+        }
+
+        // Run C: Trial mode ON -> present with .file & dismiss (cancellation) -> 2 records
+        let envFile = PulseContextEnvelope(
+            generationToken: "smoke-token-file",
+            primaryObject: FileObject(path: "/tmp/smoke.txt", provenance: ObjectProvenance(acquisitionMethod: "test")),
+            primaryReason: "selection",
+            primaryTier: 1
+        )
+        smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envFile)
+        smokeController.dismiss()
+        assert(smokeStore.totalRealInvocations == 2, "Smoke run: 2 records recorded after cancellation")
+        if let rec = smokeStore.allRecords.last {
+            assert(rec.objectClass == .file, "Smoke record 2 object class is .file")
+            assert(rec.wasCancelled, "Smoke record 2 wasCancelled is true")
+        }
+
+        // Run D: Mark feedback on cancellation
+        assert(smokeStore.markLastFeedback(.wrongDirection), "Marked feedback on last smoke record")
+        assert(smokeStore.allRecords.last?.feedback == .wrongDirection, "Feedback updated to .wrongDirection")
+
+        // Run E: Trial mode OFF again -> present & activate -> count remains 2
+        smokeStore.setTrialModeEnabled(false)
+        smokeController.present(at: CGPoint(x: 300, y: 300), envelope: envText)
+        smokeController.simulateActivation(direction: .n, choiceID: nil)
+        assert(smokeStore.totalRealInvocations == 2, "Smoke run: count unchanged when trial mode is turned OFF")
+
+        // Strict Separation Verification: shared store remained at 0
+        assert(VeilOwnerTrialStore.shared.totalRealInvocations == 0, "Shared real owner trial store remains strictly at 0 throughout all verification checks")
+        try? FileManager.default.removeItem(at: smokeURL)
+
+        // 11. Deterministic Synthetic Baseline Parity Gate
+        assert(VeilLayoutTrialSimulator.deterministicBaselineSyntheticTrialCount == 350, "Simulator defines baseline synthetic trial count == 350")
+        assert(ledger.syntheticTrialCount == VeilLayoutTrialSimulator.deterministicBaselineSyntheticTrialCount, "Ledger synthetic trial count matches baseline (350)")
     }
 
     public func runLiveAppProbes() -> Bool {

@@ -7,15 +7,15 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 12,
-  "last_updated": "2026-10-03T18:30:00Z",
+  "state_revision": 15,
+  "last_updated": "2026-10-03T19:00:00Z",
   "current_baseline": {
-    "identity": "Phase 4 Veil Interaction Engine",
-    "state": "active-veil-real-input-verified",
-    "last_verified": "2026-10-03T18:30:00Z"
+    "identity": "Phase 5 Object Layout Freeze Trial",
+    "state": "active-phase05-owner-trial-ready",
+    "last_verified": "2026-10-03T19:00:00Z"
   },
   "scope_boundaries": [
-    "DEX//PULSE native macOS V1 through Phase 4 Veil interaction engine, annular geometry parity, placement planner, pointer tracking, keyboard traversal, non-activating window, real input integration, and experimental layout registry"
+    "DEX//PULSE native macOS V1 through Phase 4 Veil interaction engine, Phase 5 candidate/experimental layout registry, autonomous mechanical diagnostics, and Phase 5 Owner Trial infrastructure ready for real owner evaluation; zero frozen layouts; Phase 6 not started"
   ],
   "linked_parent_state": null
 }
@@ -35,11 +35,11 @@
 ## 2. Current Baseline
 
 - **Primary artifact:** `build/DEX_PULSE.app` and `~/.local/bin/dexpulse`
-- **Baseline state:** `active-veil-real-input-verified`
+- **Baseline state:** `active-phase05-owner-trial-ready`
 - **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 5 test suites (`PulseCoreTests`, `PulseLensTests`, `PulseKitTests`, `PulseVerificationTests`, `PulseInteractionTests`).
 - **Active default user route:** Installed at `~/Applications/DEX_PULSE.app` with CLI `~/.local/bin/dexpulse`.
 - **Delivery state:** Local native build and user-install verified on MacBook Air M1.
-- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 81 unit tests across 5 suites, 176 verifier checks, live runtime interaction probes across TextEdit, Brave, Terminal, edge/corner clamping, and 2 attached physical displays with real Carbon hotkey delivery and 9-trajectory real mouse event integration).
+- **Last verified baseline:** 2026-10-03 (Phase 4 Veil real input verified; Phase 5 candidate/experimental registry verified with 10 candidate and 8 experimental layouts; 350 non-binding synthetic diagnostics; dedicated local Phase 5 Owner Trial Store implemented with structural separation, content-free schema, and CLI control surface; 0 frozen layouts; Phase 6 not started; ready for real owner trials).
 
 ## 3. Artifact Contract
 
@@ -238,6 +238,20 @@ None identified for the Phase 0/1/2/3/4 scope.
 - **Must remain unchanged:** Supplied original reference video bytes; locked user decisions; clean-room boundary.
 - **Mandatory checks:** `make check`, `make app`, `make install-user`, `scripts/validate_planning_source.sh`, `scripts/verify_fixtures.sh`.
 ## 13. Compact Revision Log
+
+### Revision 15 — 2026-10-03
+
+- **Artifact/source identity:** Phase 5 Owner Trial Infrastructure Closure (`branch: phase-05-layout-freeze`)
+- **State deltas:**
+  - **Metadata & State Sync:** Synchronized operational state header to Revision 15, establishing `active-phase05-owner-trial-ready` baseline with Phase 4 verified, Phase 5 candidate/experimental registry verified, Phase 5 owner-trial infrastructure active, 0 frozen layouts, and Phase 6 not started.
+  - **Synthetic Count Parity Gate:** Eliminated count drift across all documentation, tests, and diagnostics; unified baseline at 350 non-binding synthetic trials dynamically derived from `VeilLayoutTrialSimulator.deterministicBaselineSyntheticTrialCount`.
+  - **Structural Separation for Real Owner Trials:** Introduced `VeilOwnerTrialStore`, `VeilOwnerTrialRecord`, `VeilOwnerClassAggregate`, and `VeilOwnerFeedback` types completely distinct from synthetic simulation records. Compile-time separation prevents synthetic engines from writing into the owner store.
+  - **Strict Content-Free Privacy Guarantee:** Telemetry records store only operational, temporal, and categorical metadata (class, family, version, input route, armed/selected direction, reflex identifier, seam crossings, radial overshoot, latency, cancellation, feedback). Strictly zero text strings, filenames, paths, URLs, AX element names, or clipboard bytes.
+  - **Explicit Owner Trial Mode & Local Isolation:** Trial mode defaults to OFF. Trials are only recorded when explicitly enabled by the owner. Store is saved locally to `~/Library/Application Support/DEX_PULSE/owner-trials/phase05-owner-trials.json` outside the Git repository. Real owner invocation count starts at exactly 0.
+  - **CLI Management Surface:** Added `dexpulse layout-trial` command supporting `status`, `start`/`enable`, `stop`/`disable`, `reset`, `summary [--json]`, and `mark-last <feedback>` with standardized feedback vocabulary (`good`, `misfire`, `wrong-direction`, `missing-reflex`, `needs-more-use`).
+  - **Per-Class Freeze Gate Aggregation:** Independent metrics computed per object class, verifying against the controlling source requirement of at least 20 real invocations or deliberate review per class.
+  - **Comprehensive Verification & Live Probes:** Added unit tests for store defaults, isolation, per-class attribution, corruption resilience, and schema roundtrip; added headless live controller owner-trial smoke proof using isolated temporary namespace, proving zero mutation of real user store.
+- **New evidence:** All 96 unit tests passed across 5 suites (`PulseInteractionTests` 36, `PulseCoreTests` 38, `PulseLensTests` 15, `PulseKitTests` 3, `PulseVerificationTests` 4); `PulseVerification` passed 342/342 headless checks; live runtime probes verified across TextEdit, Brave, Terminal; `dexpulse doctor` and `dexpulse layout-trial` clean; `make check` passed 6/6 stages; `make app` built and signed release bundle.
 
 ### Revision 14 — 2026-10-03
 

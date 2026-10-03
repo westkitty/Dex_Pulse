@@ -12,6 +12,8 @@ import PulseCore
 /// 5. Repeat invocation gives identical layout
 /// 6. Keyboard chords match visible layout
 public struct VeilLayoutTrialSimulator: Sendable {
+    /// Deterministic baseline count of non-binding mechanical trials across all 18 V1 classes.
+    public static let deterministicBaselineSyntheticTrialCount: Int = 350
 
     public init() {}
 

@@ -50,6 +50,12 @@ public final class VeilPointerTracker: @unchecked Sendable {
         return _currentState
     }
 
+    /// Operational telemetry metrics
+    public private(set) var seamCrossings: Int = 0
+    public private(set) var maxRadialOvershoot: Double = 0.0
+    public private(set) var cumulativeDistancePt: Double = 0.0
+    private var lastPoint: CGPoint?
+
     /// Current ring geometry.
     public var geometry: VeilRingGeometry {
         lock.lock()
@@ -68,6 +74,10 @@ public final class VeilPointerTracker: @unchecked Sendable {
         armedDirection = nil
         activeNestedParent = nil
         activeNestedChoiceID = nil
+        seamCrossings = 0
+        maxRadialOvershoot = 0.0
+        cumulativeDistancePt = 0.0
+        lastPoint = nil
     }
 
     /// Stops tracking and resets state.
@@ -80,6 +90,7 @@ public final class VeilPointerTracker: @unchecked Sendable {
         activeNestedParent = nil
         activeNestedChoiceID = nil
         _geometry.clearNestedSectors()
+        lastPoint = nil
     }
 
     /// Evaluates pointer movement against the active annular wheel geometry.
@@ -96,6 +107,19 @@ public final class VeilPointerTracker: @unchecked Sendable {
         guard _isTracking else {
             lock.unlock()
             return .outside
+        }
+
+        if let last = lastPoint {
+            cumulativeDistancePt += hypot(point.x - last.x, point.y - last.y)
+        }
+        lastPoint = point
+
+        let distFromCenter = hypot(point.x - _geometry.center.x, point.y - _geometry.center.y)
+        if distFromCenter > VeilTuningTokens.defaultOuterRadius {
+            let overshoot = distFromCenter - VeilTuningTokens.defaultOuterRadius
+            if overshoot > maxRadialOvershoot {
+                maxRadialOvershoot = overshoot
+            }
         }
 
         let result = _geometry.hitTest(
@@ -123,6 +147,9 @@ public final class VeilPointerTracker: @unchecked Sendable {
             let isInteractive = descriptor?.state.isInteractive ?? true
 
             if isInteractive {
+                if let oldDir = armedDirection, oldDir != dir {
+                    seamCrossings += 1
+                }
                 armedDirection = dir
                 activeNestedChoiceID = nil
                 newState = .sectorArmed(dir)

@@ -76,8 +76,8 @@ Layout performance and motor ergonomics are evaluated using an in-memory, privac
 - `misfires`: Bitfield tracking simulated boundary challenges (wrong sector, excessive traversal, re-arms, aborts).
 
 ### Strict Accounting Separation:
-- **Synthetic Mechanical Trials:** Diagnostic simulations testing tracker math and geometry (355 trials).
-- **Real Owner Invocations:** Separate counter strictly reserved for human owner trials (currently 0). Synthetic counts never satisfy real-use requirements.
+- **Synthetic Mechanical Trials:** Diagnostic simulations testing tracker math and geometry (350 trials dynamically verified across 18 object classes).
+- **Real Owner Invocations:** Dedicated store strictly reserved for human owner trials (currently 0). Synthetic counts never satisfy real-use requirements.
 
 ### Strict Privacy Guarantee:
 - **Zero Content Payloads:** The trial recorder strictly forbids storing selected text strings, URLs, file paths, UI element accessibility names, window titles, AX hierarchies, or clipboard bytes.

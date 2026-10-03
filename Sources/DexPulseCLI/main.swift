@@ -4,6 +4,7 @@ import PulseCore
 import PulseKit
 import PulseWitness
 import PulseLens
+import PulseInteraction
 
 struct DoctorReport: Codable {
     struct BuildInfo: Codable {
@@ -176,8 +177,10 @@ func runDoctor(asJSON: Bool) {
     ]
 
     // 7. Evidence Limitations
+    let trialModeStatus = VeilOwnerTrialStore.shared.isTrialModeEnabled ? "ACTIVE" : "INACTIVE"
+    let realInvocCount = VeilOwnerTrialStore.shared.totalRealInvocations
     let evidenceLimitations = [
-        "Phase 5 Object Layout Freeze Trial: 10 candidate layouts (1.0.0-candidate), 8 experimental layouts (1.0.0-experimental), mechanical trial diagnostics, and privacy-safe trial ledger verified; awaiting real owner-use review before freeze.",
+        "Phase 5 Object Layout Freeze Trial: 10 candidate layouts (1.0.0-candidate), 8 experimental layouts (1.0.0-experimental), 350 non-binding synthetic diagnostics. Owner Trial Mode: \(trialModeStatus) (\(realInvocCount) real owner invocations recorded).",
         "GUI focus non-theft is architecturally enforced (nonactivatingPanel) and verified live across TextEdit, Brave Browser, and Terminal.",
         "DexDictate coexistence: Partial Phase 0/1 verified (no hotkey collision, focus/clipboard preserved); full coexistence matrix scheduled for Phase 11.",
         "Big Mac direct execution route remains pending until connected to the same physical network."
@@ -281,16 +284,111 @@ func runDoctor(asJSON: Bool) {
     print("================================================================================")
 }
 
+func handleLayoutTrialCommand(_ subargs: [String]) {
+    let store = VeilOwnerTrialStore.shared
+
+    guard let subcmd = subargs.first, !subargs.contains("--help"), !subargs.contains("-h") else {
+        print("""
+        DEX//PULSE Phase 5 Owner Trial Management
+
+        Usage:
+          dexpulse layout-trial status             Inspect current trial mode state and metrics
+          dexpulse layout-trial start              Enable Phase 5 Owner Trial Mode
+          dexpulse layout-trial stop               Disable Phase 5 Owner Trial Mode
+          dexpulse layout-trial reset              Reset local trial store evidence (preserves mode)
+          dexpulse layout-trial summary [--json]   Show per-class real owner trial evidence summary
+          dexpulse layout-trial mark-last <val>    Mark owner feedback on last recorded trial
+
+        Feedback values:
+          good | misfire | wrong-direction | missing-reflex | needs-more-use
+
+        Safety Guarantee:
+          Trial mode is strictly local development only. Real trials record categorical/operational
+          metadata only. No text strings, filenames, URLs, or window contents are ever recorded.
+        """)
+        return
+    }
+
+    switch subcmd {
+    case "status":
+        let statusStr = store.isTrialModeEnabled ? "ACTIVE (recording real trials)" : "INACTIVE (recording disabled)"
+        print("================================================================================")
+        print(" DEX//PULSE Phase 5 Owner Trial Mode Status")
+        print("================================================================================")
+        print(" Trial Mode:      \(statusStr)")
+        print(" Store Path:      \(store.fileURL.path)")
+        print(" Real Records:    \(store.totalRealInvocations) (Synthetic trials excluded: 350)")
+        print(" Threshold:       At least 20 real invocations or deliberate review per class")
+        print(" Note:            Local development only. Never synced or committed to Git.")
+        print("================================================================================")
+
+    case "start", "enable":
+        store.setTrialModeEnabled(true)
+        print("✓ Phase 5 Owner Trial Mode is now ACTIVE.")
+        print("  Store: \(store.fileURL.path)")
+        print("  Real owner interactions with the Veil will now be recorded to local development evidence.")
+
+    case "stop", "disable":
+        store.setTrialModeEnabled(false)
+        print("✓ Phase 5 Owner Trial Mode is now INACTIVE.")
+        print("  Recording is paused. Existing records preserved in local store.")
+
+    case "reset":
+        store.reset()
+        print("✓ Phase 5 local owner trial evidence has been reset.")
+        print("  Store cleared: \(store.fileURL.path)")
+        print("  All local real trial records cleared (total: 0).")
+        print("  Witness records, Spool, application data, and repository files remain untouched.")
+
+    case "summary":
+        if subargs.contains("--json") {
+            print(store.summaryJSON())
+        } else {
+            print(store.summaryReport())
+        }
+
+    case "mark-last":
+        guard subargs.count > 1, let fb = VeilOwnerFeedback(cliString: subargs[1]) else {
+            print("✗ Error: missing or invalid feedback value.")
+            print("  Allowed values: good, misfire, wrong-direction, missing-reflex, needs-more-use")
+            exit(1)
+        }
+        if store.markLastFeedback(fb) {
+            print("✓ Updated feedback on last recorded trial to: \(fb.rawValue)")
+        } else {
+            print("✗ No trial records found to mark. Record a trial by invoking the Veil while trial mode is active.")
+            exit(1)
+        }
+
+    default:
+        print("✗ Unknown layout-trial command: '\(subcmd)'")
+        print("  Run 'dexpulse layout-trial --help' for available subcommands.")
+        exit(1)
+    }
+}
+
 let args = CommandLine.arguments
 if args.contains("--help") || args.contains("-h") {
     print("""
     DEX//PULSE CLI Utility
 
     Usage:
-      dexpulse doctor [--json]   Run environment, hotkey, and capability diagnostics
-      dexpulse version          Display version and build identity
-      dexpulse --help           Show this message
+      dexpulse doctor [--json]                 Run environment, hotkey, and capability diagnostics
+      dexpulse version                        Display version and build identity
+      dexpulse probe [--point x,y]            Run live Lens context acquisition probe
+      dexpulse layout-trial status             Inspect Phase 5 Owner Trial Mode status
+      dexpulse layout-trial start              Enable Phase 5 Owner Trial Mode
+      dexpulse layout-trial stop               Disable Phase 5 Owner Trial Mode
+      dexpulse layout-trial reset              Reset local trial store evidence
+      dexpulse layout-trial summary [--json]   Show per-class real owner trial evidence summary
+      dexpulse layout-trial mark-last <val>    Mark owner feedback on last recorded trial
+      dexpulse --help                         Show this message
     """)
+    exit(0)
+}
+
+if args.count > 1 && args[1] == "layout-trial" {
+    handleLayoutTrialCommand(Array(args.dropFirst(2)))
     exit(0)
 }
 

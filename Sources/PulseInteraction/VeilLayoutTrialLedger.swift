@@ -144,8 +144,6 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
 
     private let lock = NSLock()
     private var records: [VeilLayoutTrialRecord] = []
-    private var _realOwnerInvocations: Int = 0
-
     public init() {}
 
     /// Records a single synthetic mechanical trial.
@@ -155,18 +153,12 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
         records.append(record)
     }
 
-    /// Records a real owner invocation.
-    public func recordRealOwnerInvocation() {
-        lock.lock()
-        defer { lock.unlock() }
-        _realOwnerInvocations += 1
-    }
-
-    /// Current count of real owner invocations recorded.
+    /// Current count of real owner invocations recorded in the dedicated owner trial store.
+    ///
+    /// STRUCTURAL SEPARATION:
+    /// Synthetic simulations never mutate real owner evidence.
     public var realOwnerInvocationCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return _realOwnerInvocations
+        VeilOwnerTrialStore.shared.totalRealInvocations
     }
 
     /// Current count of synthetic mechanical trials recorded.
@@ -190,12 +182,11 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
         return records.filter { $0.objectClass == objectClass }
     }
 
-    /// Clears all recorded trial history.
+    /// Clears all recorded synthetic trial history.
     public func clear() {
         lock.lock()
         defer { lock.unlock() }
         records.removeAll()
-        _realOwnerInvocations = 0
     }
 
     /// Computes aggregated metrics for an object class layout.
@@ -263,7 +254,7 @@ public final class VeilLayoutTrialLedger: @unchecked Sendable {
         let aggregates = aggregateMetricsForAll()
         var lines: [String] = []
         lines.append("=== DEX//PULSE Phase 5 Synthetic Mechanical Diagnostics Report ===")
-        lines.append("NOTE: Non-binding diagnostics. Real owner invocations recorded: \(_realOwnerInvocations)")
+        lines.append("NOTE: Non-binding diagnostics. Real owner invocations recorded: \(realOwnerInvocationCount)")
         lines.append(String(format: "%-16@ %-18@ %-8@ %-8@ %-12@ %-12@ %-8@", "ObjectClass", "Version", "Trials", "Clean", "Challenge%", "AvgDist(pt)", "Seams"))
         lines.append(String(repeating: "-", count: 90))
 

@@ -58,6 +58,13 @@ public final class VeilInteractionController: NSObject {
         keyboardAdapter?.activeChords ?? []
     }
 
+    /// Owner trial development store for Phase 5 real-use trials.
+    public var trialStore: VeilOwnerTrialStore = .shared
+    private var presentationTimestamp: Date?
+    private var initialArmedDirection: CompassDirection?
+    private var lastInputRoute: VeilInputRoute = .pointer
+    private var wasActivated: Bool = false
+
     public var currentPointerState: VeilPointerState {
         pointerTracker?.currentState ?? .idle
     }
@@ -106,6 +113,11 @@ public final class VeilInteractionController: NSObject {
 
     /// Presents the Veil annular wheel at the designated causal origin point.
     public func present(at screenPoint: CGPoint? = nil, envelope providedEnvelope: PulseContextEnvelope? = nil) {
+        self.presentationTimestamp = Date()
+        self.initialArmedDirection = nil
+        self.lastInputRoute = .pointer
+        self.wasActivated = false
+
         let mouseLocation = screenPoint ?? NSEvent.mouseLocation
         let cgPoint = LensCoordinates.toCG(appKitPoint: mouseLocation)
 
@@ -173,6 +185,10 @@ public final class VeilInteractionController: NSObject {
         navigator.onSelectionChanged = { [weak self, weak tracker] dir, choiceID in
             Task { @MainActor [weak self, weak tracker] in
                 guard let tracker = tracker else { return }
+                self?.lastInputRoute = .keyboard
+                if self?.initialArmedDirection == nil {
+                    self?.initialArmedDirection = dir
+                }
                 if let d = dir {
                     if let c = choiceID {
                         tracker.armNestedChoice(c, parentDirection: d)
@@ -186,12 +202,14 @@ public final class VeilInteractionController: NSObject {
 
         navigator.onActivated = { [weak self] dir, choiceID in
             Task { @MainActor [weak self] in
+                self?.lastInputRoute = .keyboard
                 self?.handleActivation(direction: dir, choiceID: choiceID)
             }
         }
 
         navigator.onCancelled = { [weak self] in
             Task { @MainActor [weak self] in
+                self?.lastInputRoute = .keyboard
                 self?.dismiss()
             }
         }
@@ -202,8 +220,11 @@ public final class VeilInteractionController: NSObject {
             }
         }
 
-        tracker.onStateChange = { [weak self] _ in
-            Task { @MainActor [weak self] in
+        tracker.onStateChange = { [weak self, weak tracker] _ in
+            Task { @MainActor [weak self, weak tracker] in
+                if self?.initialArmedDirection == nil, let armed = tracker?.armedDirection {
+                    self?.initialArmedDirection = armed
+                }
                 self?.veilView?.needsDisplay = true
             }
         }
@@ -253,6 +274,29 @@ public final class VeilInteractionController: NSObject {
 
     /// Dismisses the Veil cleanly through RECEDE to QUIET.
     public func dismiss() {
+        if !wasActivated, let pTime = presentationTimestamp, trialStore.isTrialModeEnabled, let layout = veilView?.layout {
+            let elapsed = Date().timeIntervalSince(pTime) * 1000.0
+            let record = VeilOwnerTrialRecord(
+                objectClass: layout.objectClass,
+                layoutFamily: layout.family,
+                layoutVersion: layout.version,
+                inputRoute: lastInputRoute,
+                initialArmedDirection: initialArmedDirection,
+                finalSelectedDirection: nil,
+                selectedReflexID: nil,
+                seamCrossingCount: pointerTracker?.seamCrossings ?? 0,
+                maxRadialOvershootPt: pointerTracker?.maxRadialOvershoot ?? 0.0,
+                elapsedSelectionMs: (elapsed * 10).rounded() / 10,
+                wasCancelled: true,
+                didEnterNested: pointerTracker?.activeNestedChoiceID != nil,
+                feedback: .unreviewed
+            )
+            trialStore.recordTrial(record)
+        }
+        presentationTimestamp = nil
+        initialArmedDirection = nil
+        wasActivated = false
+
         guard let win = window, win.isVisible else {
             stateMachine.cancel()
             return
@@ -296,10 +340,38 @@ public final class VeilInteractionController: NSObject {
         }
     }
 
-    private func handleActivation(direction: CompassDirection, choiceID: String?) {
+    /// Simulates activation of a directional reflex for test runners and verification harnesses.
+    public func simulateActivation(direction: CompassDirection, choiceID: String? = nil) {
+        handleActivation(direction: direction, choiceID: choiceID)
+    }
+
+    internal func handleActivation(direction: CompassDirection, choiceID: String?) {
         guard let layout = veilView?.layout, layout.reflex(at: direction) != nil else {
             dismiss()
             return
+        }
+
+        self.wasActivated = true
+
+        if trialStore.isTrialModeEnabled {
+            let elapsed = presentationTimestamp.map { Date().timeIntervalSince($0) * 1000.0 } ?? 0.0
+            let reflexID = choiceID ?? layout.reflex(at: direction)?.id
+            let record = VeilOwnerTrialRecord(
+                objectClass: layout.objectClass,
+                layoutFamily: layout.family,
+                layoutVersion: layout.version,
+                inputRoute: lastInputRoute,
+                initialArmedDirection: initialArmedDirection,
+                finalSelectedDirection: direction,
+                selectedReflexID: reflexID,
+                seamCrossingCount: pointerTracker?.seamCrossings ?? 0,
+                maxRadialOvershootPt: pointerTracker?.maxRadialOvershoot ?? 0.0,
+                elapsedSelectionMs: (elapsed * 10).rounded() / 10,
+                wasCancelled: false,
+                didEnterNested: choiceID != nil || (pointerTracker?.activeNestedChoiceID != nil),
+                feedback: .unreviewed
+            )
+            trialStore.recordTrial(record)
         }
 
         // Attune Reflex on state machine

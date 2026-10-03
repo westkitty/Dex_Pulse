@@ -112,7 +112,8 @@ let package = Package(
                 "PulseCore",
                 "PulseWitness",
                 "PulseKit",
-                "PulseLens"
+                "PulseLens",
+                "PulseInteraction"
             ],
             path: "Sources/DexPulseCLI"
         ),
