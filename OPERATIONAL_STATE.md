@@ -7,12 +7,12 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 8,
-  "last_updated": "2026-10-03T02:10:00Z",
+  "state_revision": 9,
+  "last_updated": "2026-10-03T02:40:00Z",
   "current_baseline": {
     "identity": "Phase 3 Semantic State Machine",
     "state": "active-state-machine-verified",
-    "last_verified": "2026-10-03T02:10:00Z"
+    "last_verified": "2026-10-03T02:40:00Z"
   },
   "scope_boundaries": [
     "DEX//PULSE native macOS V1 through Phase 3 semantic state machine, explicit run lifecycles, and result holds"
@@ -39,7 +39,7 @@
 - **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 4 test suites.
 - **Active default user route:** Installed at `~/Applications/DEX_PULSE.app` with CLI `~/.local/bin/dexpulse`.
 - **Delivery state:** Local native build and user-install verified on MacBook Air M1.
-- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 34 unit tests, 73 verifier checks, live native probes on macOS).
+- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 54 unit tests, 103 verifier checks, live AppKit overlay lifecycle probe on macOS).
 
 ## 3. Artifact Contract
 
@@ -178,7 +178,7 @@ None identified for the Phase 0/1/2 scope.
 | VER-012 | Visual fixture integrity | verified-local | All 4 original MP4s and 4 contact sheets match SHA256SUMS.txt | `scripts/verify_fixtures.sh` | `fixtures/visual-references/` | 2026-10-03 | fixture changes |
 | VER-013 | Phase 2 Lens context acquisition & lazy precedence | verified-local | 5-tier precedence with lazy halting, coordinate mapping, secure blocking, type refiners, stale token validation; Tier 1 Finder single/multi file selection PASS; focus non-theft PASS | `PulseLensTests` (15/15) + `PulseVerification` (51/51) + live native probes | `Sources/PulseLens/` | 2026-10-03 | Lens changes |
 | VER-014 | Synthetic AX fixture app | verified-local | Native executable with 8 fixture control classes and --focus-secure | `PulseLensFixtureApp --inspect` + live probe | `Sources/PulseLensFixtureApp/` | 2026-10-03 | test fixture changes |
-| VER-015 | Phase 3 Semantic State Machine & Explicit Run Lifecycle | verified-local | 15-state semantic loop, PulseRun tracking with generation tokens, Result hold semantics, stale async callback rejection, and clean cancellation convergence (INV-007, INV-008) | `PulseCoreTests` (12) + `PulseVerification` (73/73) + `dexpulse doctor` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
+| VER-015 | Phase 3 Semantic State Machine & Explicit Run Lifecycle | verified-local | 15-state semantic loop, PulseRun tracking with shared generation token and bound envelope/source object ID, enforced Result hold blocking RECEDE, re-entrancy rejection (activeRunAlreadyExists), truthful cancellation state trace with observer agreement, cancellation requested vs acknowledged, 8 terminal outcome lifecycles, Witness receipt binding, Result cross-validation, 9 stale/race protections (INV-007, INV-008), and live AppKit overlay lifecycle with zero focus/clipboard theft | `PulseCoreTests` (32) + `PulseVerification` (103/103) + `dexpulse doctor` + `make check` | `Sources/PulseCore/` | 2026-10-03 | State machine changes |
 | INV-001 | DexDictate retains priority | requested | Partial Phase 0/1: no trigger collision, clipboard/focus preserved. Full coexistence matrix unverified | Concurrent runtime matrix (Phase 11) | `build/DEX_PULSE.app` (partial) | 2026-10-03 | capture/input/coexistence changes |
 | INV-002 | No destructive V1 executor | verified-local | Destructive future cap blocked | `PulsePolicy` + `PulseVerification` | `PulseKit` | 2026-10-03 | Pack/policy changes |
 | INV-003 | Lens precedence is deterministic & lazy | verified-local | Locked order: Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5; stops at winning tier; zero clipboard mutation; zero focus theft | `LensResolver` spy tests & live Fixture/TextEdit/Terminal/Brave/Finder probes | `PulseLens` | 2026-10-03 | Lens changes |
@@ -196,11 +196,22 @@ None identified for the Phase 0/1/2 scope.
 
 ## 13. Compact Revision Log
 
-### Revision 8 — 2026-10-03
+### Revision 9 — 2026-10-03
 
-- **Artifact/source identity:** Phase 3 Semantic State Machine (`branch: phase-03-state-machine`)
-- **State deltas:** Implemented full 15-state semantic state graph in `Sources/PulseCore/PulseState.swift` (`QUIET`, `PULSE`, `LENS`, `VEIL`, `ATTUNE`, `STRAND`, `FORK`, `DISPATCH`, `WEAVE`, `RETURN`, `WITNESS`, `RESOLVE`, `RECEDE`, `FRAY`, `SEVER`). Defined explicit execution run model (`PulseRun`) with unique `runID`, parent linkage, timestamps, generation tokens, and unambiguous terminal outcome classifications (`succeeded`, `cancelled`, `blocked`, `unavailable`, `timedOut`, `failed`, `interrupted`, `unknown`). Created `PulseResultObject` conforming to `PulseObject` with memory-only inspectable Result holds that pause automatic recede. Implemented thread-safe `PulseStateMachine` enforcing stale async callback rejection (INV-008) and deterministic cancellation convergence to `QUIET` across all 13 transient states (INV-007). Updated `DebugPulseOverlayController` to transition `QUIET -> PULSE -> LENS -> VEIL -> RECEDE -> QUIET` with atomic context envelope acquisition. Enhanced `WitnessReceipt` with proof state distinction (`EXECUTED != VERIFIED`) and sensitive payload exclusion.
-- **New evidence:** All 34 unit tests passed across 4 test suites; `PulseVerification` passed 73/73 headless assertions; `dexpulse doctor` verified Phase 3 lifecycle and state engine readiness; `make check` passed 6/6 verification stages cleanly; `make app` built and signed release bundle.
+- **Artifact/source identity:** Phase 3 lifecycle semantics closure (`branch: phase-03-state-machine`)
+- **State deltas:**
+  - **Shared Invocation/Envelope Identity:** `LensResolver.acquireContextEnvelope` now accepts optional `generationToken`. `PulseStateMachine.startRun()` issues the generation token which is passed to Lens, and `bindEnvelope(_:)` records the real `envelopeID`, `sourceObjectID`, `sourceObjectClass`, and `sourceObjectSummary` on `PulseRun`.
+  - **Re-entrant Invocation Guard:** Re-entrant calls to `startRun()` reject deterministically with typed error `PulseStateMachineError.activeRunAlreadyExists(runID:)` instead of silently replacing active runs.
+  - **Enforced Result Hold Invariant:** `PulseStateMachine.transition(to: .recede)` strictly blocks while `_heldResult != nil`, throwing typed error `PulseStateMachineError.resultHoldActive(resultID:)` until `releaseResultHold()` is called.
+  - **Truthful Cancellation State Trace:** `PulseStateMachine.cancel()` performs synchronous, step-by-step state transitions (`... -> RECEDE -> QUIET`), guaranteeing that observer callbacks inspect `currentState` matching the notification (`currentState == .recede` during RECEDE, `currentState == .quiet` during QUIET).
+  - **Granular Cancellation States:** Added `PulseCancellationState` (`none`, `requested`, `acknowledged`) to `PulseRun`. Added `requestCancellation()` and `acknowledgeCancellation()`. Racing executor completions during requested cancellation are rejected as stale.
+  - **Semantic AppKit Overlay Dismissal:** `DebugPulseOverlayController.dismiss()` uses causal transitions (`transition(to: .recede)` -> `transition(to: .quiet)`) with `resetToQuiet()` reserved exclusively for emergency recovery.
+  - **8 Terminal Outcome Causal Proofs:** Tested deterministic lifecycle paths for `succeeded`, `cancelled`, `blocked`, `unavailable`, `timedOut`, `failed`, `interrupted`, and `unknown`, verifying distinct failure semantics and post-terminal callback rejection.
+  - **Witness Receipt Identity Binding:** Added stable `receiptID: UUID` to `WitnessReceipt`. Added `bindReceipt` ensuring `receipt.runID == run.runID` and binding `run.receiptID = receipt.receiptID`, while enforcing distinct `executed` vs `verified` proof states.
+  - **Result Object Cross-Validation:** `recordCompletion` and `holdResult` enforce cross-validation of `runID`, `sourceObjectID`, `sourceObjectClass`, and `contextGenerationToken`.
+  - **Comprehensive 9-Case Stale/Race Protection Suite:** Tested cancelled run late callback, cross-run callback, duplicate callback, recede callback, stale envelope bind, wrong run receipt, wrong run result, cancellation requested racing callback, and timeout late callback.
+  - **Real AppKit Overlay Lifecycle Verification:** Added automated headless AppKit lifecycle test to `PulseVerification` asserting `QUIET -> PULSE -> LENS -> VEIL -> RECEDE -> QUIET`, bound run/envelope identity, zero clipboard mutation, and zero focus theft.
+- **New evidence:** All 54 unit tests passed across 4 test suites (`PulseCoreTests` 32, `PulseLensTests` 15, `PulseKitTests` 3, `PulseVerificationTests` 4); `PulseVerification` passed 103/103 headless assertions; `dexpulse doctor` verified Phase 3 lifecycle and state engine readiness; `make check` passed 6/6 verification stages cleanly; `make app` built and signed release bundle.
 
 ### Revision 7 — 2026-10-03
 

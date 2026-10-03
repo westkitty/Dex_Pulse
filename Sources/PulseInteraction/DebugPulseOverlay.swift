@@ -64,11 +64,20 @@ public final class DebugPulseOverlayController: NSObject {
         let cgPoint = LensCoordinates.toCG(appKitPoint: mouseLocation)
 
         // 1. Enter PULSE via explicit run initialization
-        _ = stateMachine.startRun()
+        let run: PulseRun
+        do {
+            run = try stateMachine.startRun()
+        } catch {
+            return
+        }
 
-        // 2. Transition PULSE -> LENS and acquire context envelope atomically
+        // 2. Transition PULSE -> LENS and acquire context envelope atomically sharing generation token
         _ = try? stateMachine.transition(to: .lens)
-        let envelope = LensResolver.acquireContextEnvelope(at: (x: Double(cgPoint.x), y: Double(cgPoint.y)))
+        let envelope = LensResolver.acquireContextEnvelope(
+            at: (x: Double(cgPoint.x), y: Double(cgPoint.y)),
+            generationToken: run.generationToken
+        )
+        try? stateMachine.bindEnvelope(envelope)
 
         let size = PulseVisualsTheme.defaultOverlaySize
 
@@ -111,6 +120,10 @@ public final class DebugPulseOverlayController: NSObject {
     }
 
     /// Dismisses the overlay and transitions cleanly through RECEDE to QUIET.
+    ///
+    /// Semantic transition contract:
+    /// Normal dismissal uses causal transitions (`transition(to: .recede)` -> `transition(to: .quiet)`).
+    /// Unconditional `resetToQuiet()` is strictly reserved for emergency recovery/unhandled exceptions.
     public func dismiss() {
         guard let win = window, win.isVisible else {
             stateMachine.cancel()
@@ -121,14 +134,28 @@ public final class DebugPulseOverlayController: NSObject {
         autoDismissTimer?.invalidate()
         autoDismissTimer = nil
 
-        _ = try? stateMachine.transition(to: .recede)
+        if stateMachine.isResultHeld {
+            stateMachine.releaseResultHold()
+        }
+
+        do {
+            try stateMachine.transition(to: .recede)
+        } catch {
+            stateMachine.cancel()
+            win.orderOut(nil)
+            return
+        }
 
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.08
             win.animator().alphaValue = 0.0
         }, completionHandler: { [weak self] in
             win.orderOut(nil)
-            self?.stateMachine.resetToQuiet()
+            do {
+                try self?.stateMachine.transition(to: .quiet)
+            } catch {
+                self?.stateMachine.resetToQuiet()
+            }
         })
     }
 

@@ -5,6 +5,8 @@ import PulseKit
 import PulseWitness
 import PulseLens
 import PulseVisuals
+import PulseInteraction
+
 struct MockVerificationProvider: LensAcquisitionProvider {
     let tier: LensPrecedenceTier
     let candidate: LensCandidate?
@@ -13,6 +15,7 @@ struct MockVerificationProvider: LensAcquisitionProvider {
     }
 }
 
+@MainActor
 final class PulseVerifier {
     private var passed = 0
     private var failed = 0
@@ -45,6 +48,7 @@ final class PulseVerifier {
         verifyLensClipboardImmutability()
         verifyVisualThemeTokens()
         verifyVisualFixtures()
+        verifyAppOverlayLifecycle()
 
         print("================================================================================")
         print(" Summary: \(passed) passed, \(failed) failed")
@@ -66,13 +70,39 @@ final class PulseVerifier {
 
         // 1. Full 15-state canonical primary loop
         do {
-            let run = sm.startRun()
+            let run = try sm.startRun()
             assert(sm.currentState == .pulse, "startRun() transitions to PULSE")
             assert(run.state == .pulse, "PulseRun initialized with state PULSE")
             assert(run.outcome == nil, "PulseRun outcome initially nil")
 
+            // Re-entrant invocation rejected with activeRunAlreadyExists
+            do {
+                _ = try sm.startRun()
+                assert(false, "Re-entrant startRun() must be rejected")
+            } catch PulseStateMachineError.activeRunAlreadyExists(let runID) {
+                assert(runID == run.runID, "Re-entrant startRun() rejected with activeRunAlreadyExists(runID:)")
+            } catch {
+                assert(false, "Unexpected re-entrancy error: \(error)")
+            }
+
             try sm.transition(to: .lens)
             assert(sm.currentState == .lens, "Transitioned to LENS")
+
+            // Context Envelope binding with shared generation token and source object
+            let prov = ObjectProvenance(acquisitionMethod: "test")
+            let sourceObj = SelectedTextObject(text: "verified code selection", provenance: prov)
+            let env = PulseContextEnvelope(
+                generationToken: run.generationToken,
+                primaryObject: sourceObj,
+                primaryReason: "selection",
+                primaryTier: 1
+            )
+            try sm.bindEnvelope(env)
+            assert(sm.currentRun?.envelopeID == env.id, "Envelope ID bound to active run")
+            assert(sm.currentRun?.sourceObjectID == sourceObj.id, "Source object ID bound to active run")
+            assert(sm.currentRun?.sourceObjectClass == .selectedText, "Source object class bound to active run")
+            assert(sm.currentRun?.sourceObjectSummary == sourceObj.summary, "Source object summary bound to active run")
+
             try sm.transition(to: .veil)
             assert(sm.currentState == .veil, "Transitioned to VEIL")
             try sm.transition(to: .attune)
@@ -89,10 +119,53 @@ final class PulseVerifier {
             assert(sm.currentState == .returnState, "Transitioned to RETURN")
             try sm.transition(to: .witness)
             assert(sm.currentState == .witness, "Transitioned to WITNESS")
+
+            // Witness receipt identity binding
+            let receipt = WitnessReceipt(
+                runID: run.runID,
+                objectClass: ObjectClass.selectedText.rawValue,
+                capabilityID: "test.capability",
+                targetMachine: "MacBook Air M1",
+                evidenceState: .executed,
+                durationMilliseconds: 12.0,
+                summary: "Executed test capability"
+            )
+            try sm.bindReceipt(receipt)
+            assert(sm.currentRun?.receiptID == receipt.receiptID, "Witness receiptID bound to active run")
+
             try sm.transition(to: .resolve)
             assert(sm.currentState == .resolve, "Transitioned to RESOLVE")
+
+            // Result hold strictly blocks RECEDE
+            let resObj = PulseResultObject(
+                runID: run.runID,
+                sourceObjectID: sourceObj.id,
+                sourceObjectClass: .selectedText,
+                capabilityID: "test.capability",
+                executorID: "local",
+                outcome: .succeeded,
+                summary: "Success result",
+                isHeld: true,
+                provenance: prov,
+                contextGenerationToken: run.generationToken
+            )
+            try sm.holdResult(resObj)
+            assert(sm.isResultHeld, "Result hold active in RESOLVE")
+
+            do {
+                try sm.transition(to: .recede)
+                assert(false, "transition(to: .recede) must fail when Result is held")
+            } catch PulseStateMachineError.resultHoldActive(let heldID) {
+                assert(heldID == resObj.id, "transition to RECEDE blocked with resultHoldActive error")
+            } catch {
+                assert(false, "Unexpected hold error: \(error)")
+            }
+
+            sm.releaseResultHold()
+            assert(!sm.isResultHeld, "Result hold released cleanly")
+
             try sm.transition(to: .recede)
-            assert(sm.currentState == .recede, "Transitioned to RECEDE")
+            assert(sm.currentState == .recede, "Transitioned to RECEDE after release")
             try sm.transition(to: .quiet)
             assert(sm.currentState == .quiet, "Returned to resting QUIET")
         } catch {
@@ -101,7 +174,7 @@ final class PulseVerifier {
 
         // 2. Direct dispatch loop without fork
         do {
-            _ = sm.startRun()
+            _ = try sm.startRun()
             try sm.transition(to: .lens)
             try sm.transition(to: .veil)
             try sm.transition(to: .attune)
@@ -132,7 +205,65 @@ final class PulseVerifier {
             assert(false, "Unexpected error: \(error)")
         }
 
-        // 4. Cancellation convergence from all transient states (INV-007)
+        // 4. Observer callback / currentState agreement during cancellation
+        do {
+            let obsMachine = PulseStateMachine()
+            _ = try obsMachine.startRun()
+            try obsMachine.transition(to: .lens)
+            try obsMachine.transition(to: .veil)
+
+            final class StateCollector: @unchecked Sendable {
+                var observed: [(from: PulseState, to: PulseState, currentAtCallback: PulseState)] = []
+            }
+            let collector = StateCollector()
+            obsMachine.onStateChange { from, to in
+                collector.observed.append((from, to, obsMachine.currentState))
+            }
+
+            obsMachine.cancel()
+            assert(collector.observed.count == 2, "Cancel produced exactly 2 transitions: VEIL -> RECEDE, RECEDE -> QUIET")
+            if collector.observed.count == 2 {
+                assert(collector.observed[0].to == .recede && collector.observed[0].currentAtCallback == .recede, "During RECEDE callback, currentState is RECEDE")
+                assert(collector.observed[1].to == .quiet && collector.observed[1].currentAtCallback == .quiet, "During QUIET callback, currentState is QUIET")
+            }
+        } catch {
+            assert(false, "Observer agreement test failed: \(error)")
+        }
+
+        // 5. Cancellation requested vs acknowledged lifecycle
+        do {
+            let cancelMachine = PulseStateMachine()
+            let run = try cancelMachine.startRun()
+            assert(run.cancellationState == .none, "Initial cancellationState is .none")
+
+            cancelMachine.requestCancellation(reason: "user_escape")
+            assert(cancelMachine.currentRun?.cancellationState == .requested, "requestCancellation sets state to .requested")
+            assert(cancelMachine.currentRun?.cancellationRequestedAt != nil, "cancellationRequestedAt recorded")
+
+            // Racing callback during requested cancellation must be rejected
+            do {
+                try cancelMachine.recordCompletion(
+                    runID: run.runID,
+                    generationToken: run.generationToken,
+                    outcome: .succeeded
+                )
+                assert(false, "Racing completion during requested cancellation must be rejected")
+            } catch PulseStateMachineError.staleCallbackRejected {
+                assert(true, "Racing completion rejected when cancellation requested (INV-008)")
+            } catch {
+                assert(false, "Unexpected error: \(error)")
+            }
+
+            cancelMachine.acknowledgeCancellation()
+            assert(cancelMachine.currentState == .quiet, "acknowledgeCancellation converged to QUIET")
+            assert(cancelMachine.currentRun?.cancellationState == .acknowledged, "cancellationState is .acknowledged")
+            assert(cancelMachine.currentRun?.cancellationAcknowledgedAt != nil, "cancellationAcknowledgedAt recorded")
+            assert(cancelMachine.currentRun?.outcome == .cancelled, "Run outcome recorded as .cancelled")
+        } catch {
+            assert(false, "Cancellation lifecycle test failed: \(error)")
+        }
+
+        // 6. Cancellation convergence from all transient states (INV-007)
         let transientStates: [PulseState] = [
             .pulse, .lens, .veil, .attune, .strand, .fork,
             .dispatch, .weave, .returnState, .witness, .resolve,
@@ -142,7 +273,7 @@ final class PulseVerifier {
         var allConverged = true
         for targetState in transientStates {
             let machine = PulseStateMachine()
-            _ = machine.startRun()
+            _ = try? machine.startRun()
             // Helper to reach targetState
             reachState(machine, targetState)
             let resultState = machine.cancel()
@@ -155,90 +286,61 @@ final class PulseVerifier {
         }
         assert(allConverged, "Cancellation from all \(transientStates.count) transient states strictly converges to QUIET (INV-007)")
 
-        // 5. Stale completion and race protection (INV-008)
-        let raceMachine = PulseStateMachine()
-        let activeRun = raceMachine.startRun()
-        let staleRunID = UUID()
-        let activeToken = activeRun.generationToken
-
-        // Stale run ID
+        // 7. Stale completion and race protection (INV-008)
         do {
-            try raceMachine.recordCompletion(
-                runID: staleRunID,
-                generationToken: activeToken,
-                outcome: .succeeded
-            )
-            assert(false, "Stale run ID completion must be rejected")
-        } catch PulseStateMachineError.staleCallbackRejected {
-            assert(true, "Stale run ID rejected with staleCallbackRejected (INV-008)")
+            let raceMachine = PulseStateMachine()
+            let activeRun = try raceMachine.startRun()
+            let staleRunID = UUID()
+            let activeToken = activeRun.generationToken
+
+            // Stale run ID
+            do {
+                try raceMachine.recordCompletion(
+                    runID: staleRunID,
+                    generationToken: activeToken,
+                    outcome: .succeeded
+                )
+                assert(false, "Stale run ID completion must be rejected")
+            } catch PulseStateMachineError.staleCallbackRejected {
+                assert(true, "Stale run ID rejected with staleCallbackRejected (INV-008)")
+            } catch {
+                assert(false, "Unexpected error: \(error)")
+            }
+
+            // Stale generation token
+            do {
+                try raceMachine.recordCompletion(
+                    runID: activeRun.runID,
+                    generationToken: "stale-generation-token-999",
+                    outcome: .succeeded
+                )
+                assert(false, "Stale generation token completion must be rejected")
+            } catch PulseStateMachineError.staleCallbackRejected {
+                assert(true, "Stale generation token rejected with staleCallbackRejected (INV-008)")
+            } catch {
+                assert(false, "Unexpected error: \(error)")
+            }
+
+            // Late callback after cancel()
+            raceMachine.cancel()
+            assert(raceMachine.currentState == .quiet, "Cancelled machine is QUIET")
+            do {
+                try raceMachine.recordCompletion(
+                    runID: activeRun.runID,
+                    generationToken: activeToken,
+                    outcome: .succeeded
+                )
+                assert(false, "Late callback after cancel must be rejected")
+            } catch PulseStateMachineError.staleCallbackRejected {
+                assert(true, "Late callback after cancel() rejected without resurrection (INV-008)")
+            } catch {
+                assert(false, "Unexpected error: \(error)")
+            }
         } catch {
-            assert(false, "Unexpected error: \(error)")
+            assert(false, "Race machine error: \(error)")
         }
 
-        // Stale generation token
-        do {
-            try raceMachine.recordCompletion(
-                runID: activeRun.runID,
-                generationToken: "stale-generation-token-999",
-                outcome: .succeeded
-            )
-            assert(false, "Stale generation token completion must be rejected")
-        } catch PulseStateMachineError.staleCallbackRejected {
-            assert(true, "Stale generation token rejected with staleCallbackRejected (INV-008)")
-        } catch {
-            assert(false, "Unexpected error: \(error)")
-        }
-
-        // Late callback after cancel()
-        raceMachine.cancel()
-        assert(raceMachine.currentState == .quiet, "Cancelled machine is QUIET")
-        do {
-            try raceMachine.recordCompletion(
-                runID: activeRun.runID,
-                generationToken: activeToken,
-                outcome: .succeeded
-            )
-            assert(false, "Late callback after cancel must be rejected")
-        } catch PulseStateMachineError.staleCallbackRejected {
-            assert(true, "Late callback after cancel() rejected without resurrection (INV-008)")
-        } catch {
-            assert(false, "Unexpected error: \(error)")
-        }
-
-        // 6. Result hold semantics (pauses auto-recede while inspectable)
-        let holdMachine = PulseStateMachine()
-        let holdRun = holdMachine.startRun()
-        _ = try? holdMachine.transition(to: .lens)
-        _ = try? holdMachine.transition(to: .veil)
-        _ = try? holdMachine.transition(to: .dispatch)
-        _ = try? holdMachine.transition(to: .witness)
-        _ = try? holdMachine.transition(to: .resolve)
-
-        let resultObj = PulseResultObject(
-            runID: holdRun.runID,
-            sourceObjectID: UUID(),
-            sourceObjectClass: .code,
-            capabilityID: "test.capability",
-            executorID: "local.executor",
-            outcome: .succeeded,
-            summary: "Result test output",
-            isHeld: true,
-            provenance: ObjectProvenance(acquisitionMethod: "test"),
-            privacyClass: .ordinary
-        )
-
-        do {
-            try holdMachine.holdResult(resultObj)
-            assert(holdMachine.isResultHeld, "Result hold active (pauses auto-recede)")
-            assert(holdMachine.heldResult?.summary == "Result test output", "Held result inspectable in memory")
-            holdMachine.releaseResultHold()
-            assert(!holdMachine.isResultHeld, "Result hold released cleanly")
-        } catch {
-            assert(false, "Result hold threw error: \(error)")
-        }
-        holdMachine.cancel()
-
-        // 7. Witness proof semantics (EXECUTED != VERIFIED)
+        // 8. Witness proof semantics (EXECUTED != VERIFIED)
         let execReceipt = WitnessReceipt(
             objectClass: "CodeObject",
             capabilityID: "git.diff",
@@ -518,8 +620,68 @@ final class PulseVerifier {
             assert(exists, "Canonical original video fixture present: \(video)")
         }
     }
+
+    private func verifyAppOverlayLifecycle() {
+        print("\n[12] Verifying Real App Overlay Invocation & Dismissal Lifecycle...")
+        _ = NSApplication.shared
+        let sm = PulseStateMachine()
+        let controller = DebugPulseOverlayController(stateMachine: sm)
+
+        let pboard = NSPasteboard.general
+        let countBefore = pboard.changeCount
+        let textBefore = pboard.string(forType: .string)
+        let frontAppBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+        // 1. Present overlay at test coordinates
+        controller.present(at: CGPoint(x: 400, y: 400))
+
+        assert(sm.currentState == .veil, "App overlay presented: stateMachine is in VEIL")
+        assert(controller.isVisible, "DebugPulseOverlayWindow is visible")
+
+        guard let run = sm.currentRun else {
+            assert(false, "Active PulseRun missing during overlay presentation")
+            return
+        }
+
+        assert(run.state == .veil, "Active PulseRun state is VEIL")
+        assert(run.envelopeID != nil, "Active PulseRun contains real bound envelopeID")
+        assert(!run.generationToken.isEmpty, "Active PulseRun contains generationToken")
+        assert(run.generationToken == sm.activeGenerationToken, "Run generationToken matches state machine active token")
+
+        // 2. Check pasteboard and focus preservation during presentation
+        let countDuring = pboard.changeCount
+        let frontAppDuring = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        assert(countBefore == countDuring, "Clipboard changeCount remained unchanged during overlay presentation (INV-001)")
+        assert(frontAppBefore == frontAppDuring, "Frontmost application PID remained unchanged during overlay presentation (focus non-theft)")
+
+        // 3. Dismiss overlay and verify semantic transition trace RECEDE -> QUIET
+        controller.dismiss()
+
+        let runLoop = RunLoop.current
+        let deadline = Date().addingTimeInterval(0.5)
+        while sm.currentState != .quiet && Date() < deadline {
+            runLoop.run(until: Date().addingTimeInterval(0.02))
+        }
+
+        assert(sm.currentState == .quiet, "Dismissal transitioned cleanly to resting QUIET")
+        assert(!controller.isVisible, "Overlay window ordered out after dismissal")
+
+        let countAfter = pboard.changeCount
+        let textAfter = pboard.string(forType: .string)
+        let frontAppAfter = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+        assert(countBefore == countAfter, "Clipboard changeCount unchanged after dismissal")
+        assert(textBefore == textAfter, "Clipboard string content unchanged after dismissal")
+        assert(frontAppBefore == frontAppAfter, "Frontmost application focus preserved after dismissal")
+    }
 }
 
-let verifier = PulseVerifier()
-let success = verifier.runAll()
-exit(success ? 0 : 1)
+@main
+struct PulseVerificationMain {
+    @MainActor
+    static func main() {
+        let verifier = PulseVerifier()
+        let success = verifier.runAll()
+        exit(success ? 0 : 1)
+    }
+}

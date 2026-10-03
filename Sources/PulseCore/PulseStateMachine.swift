@@ -6,6 +6,8 @@ public enum PulseStateMachineError: Error, Equatable, CustomStringConvertible {
     case staleCallbackRejected(String)
     case noActiveRun
     case invalidStateForHold(PulseState)
+    case activeRunAlreadyExists(runID: UUID)
+    case resultHoldActive(resultID: UUID)
 
     public var description: String {
         switch self {
@@ -19,6 +21,10 @@ public enum PulseStateMachineError: Error, Equatable, CustomStringConvertible {
             return "No active Pulse execution run"
         case .invalidStateForHold(let state):
             return "Cannot hold result in non-resolved state [\(state)]"
+        case .activeRunAlreadyExists(let runID):
+            return "Active run already exists [\(runID)]"
+        case .resultHoldActive(let resultID):
+            return "Cannot transition to RECEDE while result hold is active [\(resultID)]"
         }
     }
 }
@@ -97,15 +103,19 @@ public final class PulseStateMachine: @unchecked Sendable {
     }
 
     /// Initiates a new explicit execution run from QUIET into PULSE.
+    ///
+    /// Re-entrant invocation is rejected with `PulseStateMachineError.activeRunAlreadyExists`.
     @discardableResult
     public func startRun(
         envelope: PulseContextEnvelope? = nil,
         parentRunID: UUID? = nil
-    ) -> PulseRun {
+    ) throws -> PulseRun {
         lock.lock()
-        // If an interaction was already active, cancel it cleanly first
-        if _currentState != .quiet {
-            _cancelInternalLocked()
+        // Enforce: Re-entrant invocation in startRun() rejects with typed error activeRunAlreadyExists
+        if _currentState != .quiet || (_currentRun != nil && !_currentRun!.isCompleted) {
+            let activeID = _currentRun?.runID ?? UUID()
+            lock.unlock()
+            throw PulseStateMachineError.activeRunAlreadyExists(runID: activeID)
         }
 
         let token = envelope?.generationToken ?? UUID().uuidString
@@ -115,6 +125,7 @@ public final class PulseStateMachine: @unchecked Sendable {
             startTime: Date(),
             envelopeID: envelope?.id,
             generationToken: token,
+            sourceObjectID: envelope?.primaryObject?.id,
             sourceObjectSummary: envelope?.primaryObject?.summary,
             sourceObjectClass: envelope?.primaryObject?.objectClass,
             state: .pulse
@@ -136,11 +147,58 @@ public final class PulseStateMachine: @unchecked Sendable {
         return run
     }
 
+    /// Binds a context envelope to the active run, verifying generation token and recording source object identity.
+    public func bindEnvelope(_ envelope: PulseContextEnvelope) throws {
+        lock.lock()
+        guard let current = _currentRun else {
+            lock.unlock()
+            throw PulseStateMachineError.noActiveRun
+        }
+        guard envelope.generationToken == current.generationToken,
+              envelope.generationToken == _activeGenerationToken else {
+            lock.unlock()
+            throw PulseStateMachineError.staleCallbackRejected(
+                "Envelope generation token mismatch: expected \(current.generationToken), got \(envelope.generationToken)"
+            )
+        }
+        _currentRun?.envelopeID = envelope.id
+        if let primary = envelope.primaryObject {
+            _currentRun?.sourceObjectID = primary.id
+            _currentRun?.sourceObjectClass = primary.objectClass
+            _currentRun?.sourceObjectSummary = primary.summary
+        }
+        lock.unlock()
+    }
+
+    /// Binds an executed or verified receipt ID to the active run, validating runID and establishing identity.
+    public func bindReceipt(receiptID: UUID, runID: UUID) throws {
+        lock.lock()
+        guard let current = _currentRun else {
+            lock.unlock()
+            throw PulseStateMachineError.noActiveRun
+        }
+        guard runID == current.runID else {
+            lock.unlock()
+            throw PulseStateMachineError.staleCallbackRejected(
+                "Receipt runID mismatch: expected \(current.runID), got \(runID)"
+            )
+        }
+        _currentRun?.receiptID = receiptID
+        lock.unlock()
+    }
+
     /// Explicitly transitions to a new state if permitted by the transition graph.
     @discardableResult
     public func transition(to newState: PulseState) throws -> PulseState {
         lock.lock()
         let oldState = _currentState
+
+        // Enforce Result Hold Invariant: cannot transition to RECEDE if Result is held
+        if newState == .recede && _heldResult != nil {
+            let heldID = _heldResult!.id
+            lock.unlock()
+            throw PulseStateMachineError.resultHoldActive(resultID: heldID)
+        }
 
         guard PulseStateTransition.isValid(from: oldState, to: newState) else {
             lock.unlock()
@@ -174,13 +232,14 @@ public final class PulseStateMachine: @unchecked Sendable {
               _activeGenerationToken == generationToken,
               _currentState != .quiet,
               _currentState != .recede,
+              current.cancellationState == .none,
               current.outcome == nil else {
             return false
         }
         return true
     }
 
-    /// Records asynchronous completion from an executor, enforcing stale-callback rejection.
+    /// Records asynchronous completion from an executor, enforcing stale-callback rejection and cross-validation.
     @discardableResult
     public func recordCompletion(
         runID: UUID,
@@ -208,6 +267,14 @@ public final class PulseStateMachine: @unchecked Sendable {
             )
         }
 
+        // Stale/racing check: if cancellation was requested or acknowledged, reject completion
+        guard current.cancellationState == .none else {
+            lock.unlock()
+            throw PulseStateMachineError.staleCallbackRejected(
+                "Cancellation already requested/acknowledged for run [\(current.runID)]"
+            )
+        }
+
         guard _currentState != .quiet && _currentState != .recede && current.outcome == nil else {
             lock.unlock()
             throw PulseStateMachineError.staleCallbackRejected(
@@ -215,15 +282,46 @@ public final class PulseStateMachine: @unchecked Sendable {
             )
         }
 
-        _currentRun?.outcome = outcome
-        _currentRun?.endTime = Date()
-
+        // Validate Result Object identity if supplied
         if let res = result {
+            guard res.runID == current.runID else {
+                lock.unlock()
+                throw PulseStateMachineError.staleCallbackRejected(
+                    "Result runID mismatch: expected \(current.runID), received \(res.runID)"
+                )
+            }
+            if let srcID = current.sourceObjectID {
+                guard res.sourceObjectID == srcID else {
+                    lock.unlock()
+                    throw PulseStateMachineError.staleCallbackRejected(
+                        "Result sourceObjectID mismatch: expected \(srcID), received \(res.sourceObjectID)"
+                    )
+                }
+            }
+            if let srcClass = current.sourceObjectClass {
+                guard res.sourceObjectClass == srcClass else {
+                    lock.unlock()
+                    throw PulseStateMachineError.staleCallbackRejected(
+                        "Result sourceObjectClass mismatch: expected \(srcClass), received \(res.sourceObjectClass)"
+                    )
+                }
+            }
+            if let token = res.contextGenerationToken {
+                guard token == current.generationToken else {
+                    lock.unlock()
+                    throw PulseStateMachineError.staleCallbackRejected(
+                        "Result contextGenerationToken mismatch: expected \(current.generationToken), received \(token)"
+                    )
+                }
+            }
             _currentRun?.resultID = res.id
             if res.isHeld {
                 _heldResult = res
             }
         }
+
+        _currentRun?.outcome = outcome
+        _currentRun?.endTime = Date()
 
         let finalRun = _currentRun!
         let runHandlers = runCompletionHandlers
@@ -243,6 +341,24 @@ public final class PulseStateMachine: @unchecked Sendable {
             lock.unlock()
             throw PulseStateMachineError.invalidStateForHold(_currentState)
         }
+        guard let current = _currentRun else {
+            lock.unlock()
+            throw PulseStateMachineError.noActiveRun
+        }
+        guard result.runID == current.runID else {
+            lock.unlock()
+            throw PulseStateMachineError.staleCallbackRejected(
+                "Result runID mismatch: expected \(current.runID), received \(result.runID)"
+            )
+        }
+        if let srcID = current.sourceObjectID {
+            guard result.sourceObjectID == srcID else {
+                lock.unlock()
+                throw PulseStateMachineError.staleCallbackRejected(
+                    "Result sourceObjectID mismatch: expected \(srcID), received \(result.sourceObjectID)"
+                )
+            }
+        }
         var held = result
         held.isHeld = true
         _heldResult = held
@@ -257,7 +373,33 @@ public final class PulseStateMachine: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Requests cancellation for the active run (distinguishing requested from acknowledged).
+    public func requestCancellation(reason: String? = nil) {
+        lock.lock()
+        if _currentRun != nil && _currentRun?.cancellationState == PulseCancellationState.none {
+            _currentRun?.cancellationState = .requested
+            _currentRun?.cancellationRequestedAt = Date()
+        }
+        lock.unlock()
+    }
+
+    /// Acknowledges cancellation and converges cleanly through RECEDE to QUIET.
+    @discardableResult
+    public func acknowledgeCancellation() -> PulseState {
+        lock.lock()
+        if _currentRun != nil {
+            _currentRun?.cancellationState = .acknowledged
+            _currentRun?.cancellationAcknowledgedAt = Date()
+        }
+        lock.unlock()
+        return cancel(reason: "cancellation_acknowledged")
+    }
+
     /// Cancels any transient interaction and guarantees clean convergence through RECEDE to QUIET.
+    ///
+    /// Truthful state transitions:
+    /// Step 1: Transitions to RECEDE and notifies observers while in RECEDE.
+    /// Step 2: Transitions to QUIET and notifies observers while in QUIET.
     @discardableResult
     public func cancel(reason: String? = nil) -> PulseState {
         lock.lock()
@@ -267,16 +409,40 @@ public final class PulseStateMachine: @unchecked Sendable {
             return .quiet
         }
 
-        _cancelInternalLocked()
+        if _currentRun != nil {
+            if _currentRun?.outcome == nil {
+                _currentRun?.outcome = .cancelled
+            }
+            if _currentRun?.cancellationState != .acknowledged {
+                _currentRun?.cancellationState = .acknowledged
+                if _currentRun?.cancellationRequestedAt == nil {
+                    _currentRun?.cancellationRequestedAt = Date()
+                }
+                _currentRun?.cancellationAcknowledgedAt = Date()
+            }
+        }
+        _heldResult = nil
+
+        // If not already in RECEDE, step to RECEDE first
+        if oldState != .recede {
+            _currentState = .recede
+            _currentRun?.state = .recede
+            let handlers = stateChangeHandlers
+            lock.unlock()
+            for handler in handlers {
+                handler(oldState, .recede)
+            }
+            lock.lock()
+        }
+
+        // Final step to QUIET
+        _currentState = .quiet
+        _currentRun?.state = .quiet
+        _currentRun?.endTime = Date()
+        _activeGenerationToken = nil
         let handlers = stateChangeHandlers
         lock.unlock()
 
-        // Notify transition to RECEDE
-        for handler in handlers {
-            handler(oldState, .recede)
-        }
-
-        // Notify transition to QUIET
         for handler in handlers {
             handler(.recede, .quiet)
         }
@@ -284,8 +450,10 @@ public final class PulseStateMachine: @unchecked Sendable {
         return .quiet
     }
 
-    /// Internal locked implementation of cancellation convergence.
-    private func _cancelInternalLocked() {
+    /// Resets the state machine unconditionally to QUIET (used during startup/shutdown and emergency recovery).
+    public func resetToQuiet() {
+        lock.lock()
+        let oldState = _currentState
         if _currentRun != nil && _currentRun?.outcome == nil {
             _currentRun?.outcome = .cancelled
             _currentRun?.endTime = Date()
@@ -294,13 +462,6 @@ public final class PulseStateMachine: @unchecked Sendable {
         _activeGenerationToken = nil
         _heldResult = nil
         _currentState = .quiet
-    }
-
-    /// Resets the state machine unconditionally to QUIET (used during startup/shutdown).
-    public func resetToQuiet() {
-        lock.lock()
-        let oldState = _currentState
-        _cancelInternalLocked()
         let handlers = stateChangeHandlers
         lock.unlock()
 

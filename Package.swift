@@ -125,7 +125,8 @@ let package = Package(
                 "PulseWitness",
                 "PulseKit",
                 "PulseLens",
-                "PulseVisuals"
+                "PulseVisuals",
+                "PulseInteraction"
             ],
             path: "Sources/PulseVerification"
         ),
@@ -143,7 +144,7 @@ let package = Package(
         // Test targets
         .testTarget(
             name: "PulseCoreTests",
-            dependencies: ["PulseCore"],
+            dependencies: ["PulseCore", "PulseWitness"],
             path: "Tests/PulseCoreTests",
             swiftSettings: testSwiftSettings,
             linkerSettings: testLinkerSettings

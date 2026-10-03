@@ -27,6 +27,15 @@ public enum PulseTerminalOutcome: String, Sendable, Codable, Equatable, CaseIter
     }
 }
 
+/// Cancellation lifecycle states distinguishing requested from acknowledged.
+public enum PulseCancellationState: String, Sendable, Codable, Equatable, CaseIterable, CustomStringConvertible {
+    case none = "none"
+    case requested = "requested"
+    case acknowledged = "acknowledged"
+
+    public var description: String { rawValue }
+}
+
 /// Explicit execution run representation tracking full lifecycle and provenance.
 public struct PulseRun: Sendable, Codable, Equatable, Identifiable {
     public let runID: UUID
@@ -35,10 +44,14 @@ public struct PulseRun: Sendable, Codable, Equatable, Identifiable {
     public var endTime: Date?
     public var envelopeID: UUID?
     public let generationToken: String
+    public var sourceObjectID: UUID?
     public var sourceObjectSummary: String?
     public var sourceObjectClass: ObjectClass?
     public var state: PulseState
     public var outcome: PulseTerminalOutcome?
+    public var cancellationState: PulseCancellationState
+    public var cancellationRequestedAt: Date?
+    public var cancellationAcknowledgedAt: Date?
     public var capabilityID: String?
     public var targetID: String?
     public var resultID: UUID?
@@ -53,10 +66,14 @@ public struct PulseRun: Sendable, Codable, Equatable, Identifiable {
         endTime: Date? = nil,
         envelopeID: UUID? = nil,
         generationToken: String = UUID().uuidString,
+        sourceObjectID: UUID? = nil,
         sourceObjectSummary: String? = nil,
         sourceObjectClass: ObjectClass? = nil,
         state: PulseState = .pulse,
         outcome: PulseTerminalOutcome? = nil,
+        cancellationState: PulseCancellationState = .none,
+        cancellationRequestedAt: Date? = nil,
+        cancellationAcknowledgedAt: Date? = nil,
         capabilityID: String? = nil,
         targetID: String? = nil,
         resultID: UUID? = nil,
@@ -68,10 +85,14 @@ public struct PulseRun: Sendable, Codable, Equatable, Identifiable {
         self.endTime = endTime
         self.envelopeID = envelopeID
         self.generationToken = generationToken
+        self.sourceObjectID = sourceObjectID
         self.sourceObjectSummary = sourceObjectSummary
         self.sourceObjectClass = sourceObjectClass
         self.state = state
         self.outcome = outcome
+        self.cancellationState = cancellationState
+        self.cancellationRequestedAt = cancellationRequestedAt
+        self.cancellationAcknowledgedAt = cancellationAcknowledgedAt
         self.capabilityID = capabilityID
         self.targetID = targetID
         self.resultID = resultID
@@ -80,7 +101,7 @@ public struct PulseRun: Sendable, Codable, Equatable, Identifiable {
 
     /// Whether this run has reached a terminal outcome.
     public var isCompleted: Bool {
-        outcome != nil || state == .quiet || state == .recede
+        outcome != nil || state == .quiet || state == .recede || cancellationState == .acknowledged
     }
 
     /// Execution duration in seconds if finished, or elapsed time if still running.

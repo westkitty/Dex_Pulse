@@ -65,7 +65,8 @@ public struct LensResolver: Sendable {
     /// Acquires a full, bounded PulseContextEnvelope for an invocation at the given screen coordinates.
     public static func acquireContextEnvelope(
         at screenPoint: (x: Double, y: Double)? = nil,
-        providers: [any LensAcquisitionProvider]? = nil
+        providers: [any LensAcquisitionProvider]? = nil,
+        generationToken: String? = nil
     ) -> PulseContextEnvelope {
         let activeProviders = providers ?? [
             SelectedTextProvider(),
@@ -76,7 +77,7 @@ public struct LensResolver: Sendable {
             ClipboardFallbackProvider()
         ]
 
-        let generationToken = UUID().uuidString
+        let token = generationToken ?? UUID().uuidString
         let authStatus = AccessibilityAuthorizer.checkStatus()
         var degradationReasons: [ContextDegradationReason] = []
         if authStatus == .denied {
@@ -136,7 +137,7 @@ public struct LensResolver: Sendable {
 
         return PulseContextEnvelope(
             invocationTime: Date(),
-            generationToken: generationToken,
+            generationToken: token,
             screenCoordinates: screenPoint,
             primaryObject: primary?.object,
             primaryReason: primary?.acquisitionReason,
