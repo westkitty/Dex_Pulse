@@ -7,15 +7,15 @@
   "project_name": "DEX//PULSE",
   "project_root": "westkitty/Dex_Pulse",
   "artifact_path": "build/DEX_PULSE.app",
-  "state_revision": 9,
-  "last_updated": "2026-10-03T02:40:00Z",
+  "state_revision": 10,
+  "last_updated": "2026-10-03T03:25:00Z",
   "current_baseline": {
-    "identity": "Phase 3 Semantic State Machine",
+    "identity": "Phase 3 Semantic State Machine (Stage A Hardened)",
     "state": "active-state-machine-verified",
-    "last_verified": "2026-10-03T02:40:00Z"
+    "last_verified": "2026-10-03T03:25:00Z"
   },
   "scope_boundaries": [
-    "DEX//PULSE native macOS V1 through Phase 3 semantic state machine, explicit run lifecycles, and result holds"
+    "DEX//PULSE native macOS V1 through Phase 3 semantic state machine, explicit run lifecycles, result holds, and identity hardening"
   ],
   "linked_parent_state": null
 }
@@ -39,7 +39,7 @@
 - **Source/build/install identity:** Swift Package foundation (`Package.swift`) with 6 core modules (`PulseCore`, `PulseWitness`, `PulseKit`, `PulseLens`, `PulseVisuals`, `PulseInteraction`), 3 executables (`DexPulseApp`, `dexpulse`, `PulseVerification`), synthetic fixture target `PulseLensFixtureApp`, and 4 test suites.
 - **Active default user route:** Installed at `~/Applications/DEX_PULSE.app` with CLI `~/.local/bin/dexpulse`.
 - **Delivery state:** Local native build and user-install verified on MacBook Air M1.
-- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 54 unit tests, 103 verifier checks, live AppKit overlay lifecycle probe on macOS).
+- **Last verified baseline:** 2026-10-03 (`make check`, `make app`, 60 unit tests, 103 verifier checks, live AppKit overlay lifecycle probe on macOS, GitHub Actions CI run 37106200742).
 
 ## 3. Artifact Contract
 
@@ -192,9 +192,17 @@ None identified for the Phase 0/1/2 scope.
 - **Allowed to change:** Package foundation, AppKit shell, interaction, verification, build scripts, tests.
 - **Must remain unchanged:** Supplied original reference video bytes; locked user decisions; clean-room boundary.
 - **Mandatory checks:** `make check`, `make app`, `make install-user`, `scripts/validate_planning_source.sh`, `scripts/verify_fixtures.sh`.
-- **Repair class:** Phase 3 Semantic State Machine.
-
 ## 13. Compact Revision Log
+
+### Revision 10 — 2026-10-03
+
+- **Artifact/source identity:** Stage A Final Phase 3 Identity/Termination Hardening (`branch: phase-03-state-machine`)
+- **State deltas:**
+  - **Unified Result Identity Validation:** Consolidated Result Object validation for `recordCompletion(...)` and `holdResult(...)` into a single internal method `validateResultIdentity`. Enforced strict 4-way matching of `runID`, `sourceObjectID`, `sourceObjectClass`, and `contextGenerationToken`. Explicitly rejected nil/missing generation tokens when an invocation token is bound, throwing typed error `PulseStateMachineError.resultMismatch`.
+  - **Tightened Envelope Binding Lifetime:** Enforced that `bindEnvelope(...)` requires an active, uncompleted run (`outcome == nil`, `!isCompleted`) in legitimate context-acquisition states (`.pulse` or `.lens`), throwing `PulseStateMachineError.invalidStateForBinding` otherwise.
+  - **Complete Witness/Run Metadata Binding:** Implemented `PulseReceiptBindingMetadata` to cross-validate `runID`, `parentRunID`, `objectClass`, `capabilityID`, `targetID`, and non-contradicting `outcome` before attaching `receiptID` to `PulseRun`, maintaining strict module dependency boundaries.
+  - **Execution-Phase Cancellation via SEVER:** Updated `PulseStateMachine.cancel()` so that cancellations during execution-active states (`DISPATCH` or `WEAVE`) causally transition `... -> SEVER -> RECEDE -> QUIET`, with registered observers inspecting synchronous `currentState` at every transition. Late completions after cancellation remain rejected.
+- **New evidence:** All 60 unit tests passed across 4 test suites (`PulseCoreTests` 38, `PulseLensTests` 15, `PulseKitTests` 3, `PulseVerificationTests` 4); `PulseVerification` passed 103/103 headless assertions; `dexpulse doctor` verified clean operation; `make check` passed 6/6 verification stages cleanly; GitHub Actions CI run `37106200742` completed with `success` on commit `3e50172666f6e83a9b3d0c664bc432ff1bf7ce8b`.
 
 ### Revision 9 — 2026-10-03
 
